@@ -3,11 +3,36 @@ import asyncio
 import struct
 import socket
 import logging
+import os
 from typing import Tuple, Optional
-from proxy_auth import proxy_auth
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Настройки API для проверки учетных данных
+API_URL = os.getenv('API_URL', 'http://bot-server:5000/verify')
+API_TOKEN = os.getenv('API_TOKEN', 'your_secret_token_here_change_me')
+USE_API_VALIDATION = os.getenv('USE_API_VALIDATION', 'false').lower() == 'true'
+
+
+class ProxyAuth:
+    """Простая система аутентификации"""
+    
+    def __init__(self):
+        self.credentials_store = {}
+    
+    def parse_domain(self, domain: str) -> Optional[Tuple[str, str]]:
+        """Извлечение учетных данных из домена"""
+        try:
+            domain = domain.replace('.8800.life', '').split(':')[0]
+            if len(domain) == 8 and domain.isalnum():
+                return self.credentials_store.get(domain)
+        except:
+            pass
+        return None
+
+
+proxy_auth = ProxyAuth()
 
 
 class SOCKS5Server:
@@ -18,8 +43,46 @@ class SOCKS5Server:
         self.port = port
         self.active_connections = 0
     
-    def verify_credentials(self, username: str, password: str) -> bool:
-        """Проверка учетных данных (все валидные пары принимаются)"""
+    def verify_credentials_api(self, proxy_id: str, username: str, password: str) -> bool:
+        """Проверка учетных данных через API"""
+        if not USE_API_VALIDATION:
+            return False
+        
+        try:
+            import requests
+            response = requests.post(
+                API_URL,
+                json={
+                    'proxy_id': proxy_id,
+                    'username': username,
+                    'password': password
+                },
+                headers={'Authorization': f'Bearer {API_TOKEN}'},
+                timeout=2
+            )
+            if response.status_code == 200:
+                return response.json().get('valid', False)
+            return False
+        except Exception as e:
+            logger.error(f"Ошибка API проверки: {e}")
+            return False
+    
+    def verify_credentials(self, username: str, password: str, client_domain: str = None) -> bool:
+        """Проверка учетных данных"""
+        # Если включена API валидация
+        if USE_API_VALIDATION and client_domain:
+            proxy_id = client_domain.replace('.8800.life', '').split(':')[0]
+            if len(proxy_id) == 8 and proxy_id.isalnum():
+                return self.verify_credentials_api(proxy_id, username, password)
+        
+        # Локальная проверка (для тестирования)
+        if client_domain:
+            credentials = proxy_auth.parse_domain(client_domain)
+            if credentials:
+                expected_user, expected_pass = credentials
+                if username == expected_user and password == expected_pass:
+                    return True
+        
         # Проверяем что логин и пароль не пустые и имеют правильную длину
         if len(username) == 8 and len(password) == 8:
             return True
@@ -28,7 +91,6 @@ class SOCKS5Server:
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Обработка клиента"""
         try:
-            # Получаем адрес клиента
             addr = writer.get_extra_info('peername')
             self.active_connections += 1
             logger.info(f"[{self.active_connections}] Новое подключение от {addr}")
@@ -43,7 +105,6 @@ class SOCKS5Server:
                 logger.warning(f"Неподдерживаемая версия SOCKS: {version}")
                 return
             
-            # Читаем методы
             methods = await reader.read(nmethods)
             
             # Требуем аутентификацию (метод 2)
@@ -66,16 +127,15 @@ class SOCKS5Server:
                 
                 # Проверяем учетные данные
                 if self.verify_credentials(username, password):
-                    writer.write(struct.pack('!BB', 1, 0))  # Успех
+                    writer.write(struct.pack('!BB', 1, 0))
                     await writer.drain()
                     logger.info(f"✓ Аутентификация успешна: {username}")
                 else:
-                    writer.write(struct.pack('!BB', 1, 1))  # Ошибка
+                    writer.write(struct.pack('!BB', 1, 1))
                     await writer.drain()
                     logger.warning(f"✗ Неудачная аутентификация: {username}")
                     return
             else:
-                # Без аутентификации не работаем
                 writer.write(struct.pack('!BB', 5, 255))
                 await writer.drain()
                 return
@@ -87,19 +147,19 @@ class SOCKS5Server:
             
             version, cmd, _, atyp = struct.unpack('!BBBB', request)
             
-            if cmd != 1:  # Только CONNECT
+            if cmd != 1:
                 writer.write(struct.pack('!BBBBIH', 5, 7, 0, 1, 0, 0))
                 await writer.drain()
                 return
             
             # Читаем адрес назначения
-            if atyp == 1:  # IPv4
+            if atyp == 1:
                 addr_data = await reader.read(4)
                 dst_addr = socket.inet_ntoa(addr_data)
-            elif atyp == 3:  # Доменное имя
+            elif atyp == 3:
                 addr_len = struct.unpack('!B', await reader.read(1))[0]
                 dst_addr = (await reader.read(addr_len)).decode('utf-8')
-            elif atyp == 4:  # IPv6
+            elif atyp == 4:
                 addr_data = await reader.read(16)
                 dst_addr = socket.inet_ntop(socket.AF_INET6, addr_data)
             else:
@@ -107,7 +167,6 @@ class SOCKS5Server:
                 await writer.drain()
                 return
             
-            # Читаем порт
             dst_port = struct.unpack('!H', await reader.read(2))[0]
             
             logger.info(f"→ Подключение к {dst_addr}:{dst_port}")
@@ -119,7 +178,6 @@ class SOCKS5Server:
                     timeout=10
                 )
                 
-                # Отправляем успешный ответ
                 bind_addr = remote_writer.get_extra_info('sockname')
                 bind_ip = socket.inet_aton(bind_addr[0])
                 bind_port = bind_addr[1]
@@ -192,6 +250,7 @@ class SOCKS5Server:
         logger.info(f"  SOCKS5 Прокси-сервер 8800.life")
         logger.info(f"  Адрес: {addr[0]}:{addr[1]}")
         logger.info(f"  Аутентификация: Обязательна")
+        logger.info(f"  API валидация: {'Включена' if USE_API_VALIDATION else 'Выключена'}")
         logger.info(f"{'='*60}")
         logger.info(f"")
         

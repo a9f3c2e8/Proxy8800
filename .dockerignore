@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+*.log
+.git
+.gitignore
+.env
+norway-proxy-server
+*.md
+data/

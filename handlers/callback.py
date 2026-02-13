@@ -227,10 +227,10 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         )
         return
     
-    # Генерируем прокси данные с использованием домена
+    # Генерируем прокси данные
     import random
     import string
-    from proxy_auth import proxy_auth
+    import hashlib
     
     quantity = order_data['quantity']
     country_code = order_data['country']
@@ -239,21 +239,22 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     # Сохраняем данные первого прокси для кнопки
     first_proxy_data = None
     
-    # Выдаем прокси пользователю (сохраняем в БД)
+    # Выдаем прокси пользователю
     for i in range(quantity):
-        # Генерируем реалистичные данные
-        proxy_id = f"proxy_{user_id}_{i}_{country_code}_{random.randint(1000, 9999)}"
+        # Генерируем proxy_id (8 символов)
+        data = f"{user_id}:{i}:{random.randint(1000, 9999)}"
+        proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
         
         # Генерируем логин и пароль (8 символов)
         username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         
-        # Генерируем домен с учетными данными
-        domain = proxy_auth.generate_proxy_url(username, password)
+        # Домен для прокси
+        domain = f"{proxy_id}.8800.life"
         
         proxy_data = {
             'id': proxy_id,
-            'ip': domain,  # Используем домен вместо IP
+            'ip': domain,
             'port': 1080,
             'username': username,
             'password': password,
@@ -275,15 +276,23 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     )
     logger.info(f"Пользователь {user_id} купил {quantity} за {amount:.2f} ₽")
     
-    # Для VPN показываем кнопку подключения к Happ
-    if service_type == 'vpn' and first_proxy_data:
-        happ_link = f"https://happ.page.link/?link=https://happ.page.link/proxy?server={first_proxy_data['ip']}:{first_proxy_data['port']}&login={first_proxy_data['username']}&password={first_proxy_data['password']}"
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 Подключиться к Happ", url=happ_link)],
-            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-        ])
+    # Создаем кнопки с ссылкой на подключение
+    if first_proxy_data:
+        if service_type == 'vpn':
+            # Для VPN показываем кнопку подключения к Happ
+            happ_link = f"https://happ.page.link/?link=https://happ.page.link/proxy?server={first_proxy_data['ip']}:{first_proxy_data['port']}&login={first_proxy_data['username']}&password={first_proxy_data['password']}"
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌐 Подключиться к Happ", url=happ_link)],
+                [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+            ])
+        else:
+            # Для прокси показываем кнопку подключения к Telegram
+            tg_link = f"https://t.me/socks?server={first_proxy_data['ip']}&port={first_proxy_data['port']}"
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📱 Подключиться к Telegram", url=tg_link)],
+                [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+            ])
     else:
-        # Для прокси обычная кнопка
         keyboard = back_to_main_keyboard()
     
     # Используем edit_caption вместо edit_text, так как сообщение с фото

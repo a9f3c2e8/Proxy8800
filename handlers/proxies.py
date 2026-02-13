@@ -53,6 +53,7 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         # Показываем прокси по одному с кнопкой подключения
         for idx, proxy in enumerate(proxies, 1):
+            proxy_id = proxy.get('id', 'N/A')
             ip = proxy.get('ip', 'N/A')
             port = proxy.get('port', 'N/A')
             username = proxy.get('username', 'N/A')
@@ -61,11 +62,11 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             country_name = COUNTRIES.get(country_code, country_code.upper())
             period = proxy.get('period', 'N/A')
             
-            # Создаем ссылку для подключения к Telegram
-            tg_link = f"https://t.me/socks?server={ip}&port={port}&user={username}&pass={password}"
+            # Создаем короткую ссылку для подключения к Telegram
+            tg_link = f"https://t.me/socks?server={ip}&port={port}"
             
             text = (
-                f"<b>Прокси #{idx}</b>\n\n"
+                f"📱 <b>Прокси для Telegram</b>\n\n"
                 f"IP: <code>{ip}</code>\n"
                 f"Порт: <code>{port}</code>\n"
                 f"Логин: <code>{username}</code>\n"
@@ -151,13 +152,14 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         # Показываем первый прокси
         proxy = proxies[0]
+        proxy_id = proxy.get('id', 'N/A')
         ip = proxy.get('ip', 'N/A')
         port = proxy.get('port', 'N/A')
         username = proxy.get('username', 'N/A')
         password = proxy.get('password', 'N/A')
         period = proxy.get('period', 'N/A')
         
-        tg_link = f"https://t.me/socks?server={ip}&port={port}&user={username}&pass={password}"
+        tg_link = f"https://t.me/socks?server={ip}&port={port}"
         
         text = (
             f"📱 <b>Прокси для Telegram</b>\n\n"
