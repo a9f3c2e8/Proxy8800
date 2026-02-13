@@ -1,0 +1,16 @@
+[Unit]
+Description=8800.life SOCKS5 Proxy Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/proxy8800
+ExecStart=/usr/bin/python3 /root/proxy8800/start_proxy.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
