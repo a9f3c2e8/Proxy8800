@@ -5,9 +5,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: 8800-bot:latest
     container_name: 8800-telegram-bot
     restart: always
     volumes:
+      # Монтируем код напрямую (изменения применяются без пересборки)
+      - ./core:/app/core
+      - ./handlers:/app/handlers
+      - ./keyboards:/app/keyboards
+      - ./services:/app/services
+      - ./utils:/app/utils
+      - ./main.py:/app/main.py
       - ./data:/app/data
       - ./.env:/app/.env:ro
     environment:
