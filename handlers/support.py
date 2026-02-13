@@ -19,7 +19,9 @@ async def support_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         "💬 <b>Поддержка</b>\n\n"
         "По всем вопросам обращайтесь:\n\n"
         "@eight80zero_support\n\n"
-        "<blockquote><i>Мы всегда готовы помочь вам</i></blockquote>"
+        "<blockquote><i>Мы всегда готовы помочь вам</i></blockquote>\n\n"
+        "<a href='https://telegra.ph/Politika-konfidencialnosti-08-15-17'>Политика конфиденциальности</a> • "
+        "<a href='https://telegra.ph/Polzovatelskoe-soglashenie-08-15-10'>Пользовательское соглашение</a>"
     )
     
     logger.info(f"Пользователь {user_id} открыл поддержку")

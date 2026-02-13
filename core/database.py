@@ -104,7 +104,7 @@ class Database:
         try:
             cursor.execute('''
                 INSERT INTO users (user_id, username, first_name, balance)
-                VALUES (?, ?, ?, 1000.0)
+                VALUES (?, ?, ?, 100.0)
             ''', (user_id, username, first_name))
             conn.commit()
             logger.info(f"Создан пользователь {user_id}")
@@ -118,7 +118,7 @@ class Database:
         user = self.get_user(user_id)
         if not user:
             self.create_user(user_id)
-            return 1000.0
+            return 100.0
         return user['balance']
     
     def add_balance(self, user_id: int, amount: float) -> bool:
