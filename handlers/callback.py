@@ -236,6 +236,10 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     country_code = order_data['country']
     service_type = db.get_user_data(user_id, 'service_type', 'proxy')
     
+    # IP прокси-сервера
+    PROXY_SERVER_IP = "104.233.9.112"
+    PROXY_PORT = 1080
+    
     # Сохраняем данные первого прокси для кнопки
     first_proxy_data = None
     
@@ -249,13 +253,10 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         
-        # Домен для прокси
-        domain = f"{proxy_id}.8800.life"
-        
         proxy_data = {
             'id': proxy_id,
-            'ip': domain,
-            'port': 1080,
+            'ip': PROXY_SERVER_IP,
+            'port': PROXY_PORT,
             'username': username,
             'password': password,
             'country': country_code,
@@ -287,7 +288,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
             ])
         else:
             # Для прокси показываем кнопку подключения к Telegram
-            tg_link = f"https://t.me/socks?server={first_proxy_data['ip']}&port={first_proxy_data['port']}"
+            tg_link = f"https://t.me/socks?server={first_proxy_data['ip']}&port={first_proxy_data['port']}&user={first_proxy_data['username']}&pass={first_proxy_data['password']}"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📱 Подключиться к Telegram", url=tg_link)],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
