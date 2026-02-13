@@ -2,7 +2,7 @@
 import logging
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
-from database import db
+from core.database import db
 from keyboards import (
     back_to_main_keyboard,
     proxy_type_keyboard,
@@ -10,7 +10,7 @@ from keyboards import (
     periods_keyboard,
     confirm_order_keyboard
 )
-from config import COUNTRIES, PERIODS, MIN_QUANTITY, MAX_QUANTITY, MENU_IMAGES
+from core.config import COUNTRIES, PERIODS, MIN_QUANTITY, MAX_QUANTITY, MENU_IMAGES
 
 logger = logging.getLogger(__name__)
 

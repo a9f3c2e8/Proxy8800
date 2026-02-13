@@ -2,9 +2,9 @@
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes
-from database import db
+from core.database import db
 from keyboards import confirm_order_keyboard, back_to_main_keyboard
-from config import COUNTRIES, PERIODS, MIN_QUANTITY, MAX_QUANTITY
+from core.config import COUNTRIES, PERIODS, MIN_QUANTITY, MAX_QUANTITY
 
 logger = logging.getLogger(__name__)
 

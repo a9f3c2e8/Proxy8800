@@ -9,7 +9,7 @@ from telegram.ext import (
     filters
 )
 
-from config import BOT_TOKEN
+from core.config import BOT_TOKEN
 from handlers import (
     start_handler,
     balance_handler,

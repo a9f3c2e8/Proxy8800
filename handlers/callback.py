@@ -2,14 +2,14 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from database import db
+from core.database import db
 from keyboards import (
     countries_keyboard,
     periods_keyboard,
     confirm_order_keyboard,
     back_to_main_keyboard
 )
-from config import COUNTRIES, PERIODS
+from core.config import COUNTRIES, PERIODS
 
 logger = logging.getLogger(__name__)
 

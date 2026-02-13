@@ -2,7 +2,7 @@
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes
-from database import db
+from core.database import db
 from keyboards import back_to_main_keyboard
 
 logger = logging.getLogger(__name__)

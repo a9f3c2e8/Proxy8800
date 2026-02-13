@@ -1,7 +1,7 @@
 """Inline клавиатуры бота"""
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from typing import List, Tuple
-from config import COUNTRIES, PERIODS, PROXY_TYPES, IP_VERSIONS
+from core.config import COUNTRIES, PERIODS, PROXY_TYPES, IP_VERSIONS
 import random
 
 

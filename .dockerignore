@@ -4,7 +4,8 @@ __pycache__
 *.log
 .git
 .gitignore
-.env
-norway-proxy-server
+norway-proxy-server/
 *.md
 data/
+.vscode/
+.idea/

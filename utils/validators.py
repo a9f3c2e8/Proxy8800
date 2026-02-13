@@ -1,5 +1,5 @@
 """Валидаторы данных"""
-from config import MIN_QUANTITY, MAX_QUANTITY
+from core.config import MIN_QUANTITY, MAX_QUANTITY
 
 
 def validate_quantity(quantity: str) -> tuple[bool, int, str]:

@@ -2,9 +2,9 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import ContextTypes
-from database import db
+from core.database import db
 from keyboards import back_to_main_keyboard
-from config import MENU_IMAGES
+from core.config import MENU_IMAGES
 from utils import emoji
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@
 import requests
 import logging
 from typing import Optional, List, Dict
-from config import WEBSHARE_API_KEY, WEBSHARE_API_URL
+from core.config import WEBSHARE_API_KEY, WEBSHARE_API_URL
 
 logger = logging.getLogger(__name__)
 

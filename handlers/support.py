@@ -3,7 +3,7 @@ import logging
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 from keyboards import back_to_main_keyboard
-from config import MENU_IMAGES
+from core.config import MENU_IMAGES
 
 logger = logging.getLogger(__name__)
 
