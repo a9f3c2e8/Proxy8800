@@ -18,7 +18,7 @@ async def support_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     text = (
         "💬 <b>Поддержка</b>\n\n"
         "По всем вопросам обращайтесь:\n\n"
-        "💬 Telegram: @8800proxy_support\n\n"
+        "@eight80zero_support\n\n"
         "<blockquote><i>Мы всегда готовы помочь вам</i></blockquote>"
     )
     
