@@ -238,7 +238,6 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     
     # IP прокси-сервера
     PROXY_SERVER_IP = "104.233.9.112"
-    PROXY_PORT = 1080
     
     # Сохраняем данные первого прокси для кнопки
     first_proxy_data = None
@@ -253,10 +252,13 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         
+        # Генерируем уникальный порт для каждого прокси (10000-65000)
+        unique_port = random.randint(10000, 65000)
+        
         proxy_data = {
             'id': proxy_id,
             'ip': PROXY_SERVER_IP,
-            'port': PROXY_PORT,
+            'port': unique_port,
             'username': username,
             'password': password,
             'country': country_code,
