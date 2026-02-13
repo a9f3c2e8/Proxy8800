@@ -252,8 +252,8 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         
-        # Генерируем уникальный порт для каждого прокси (10000-65000)
-        unique_port = random.randint(10000, 65000)
+        # Порт всегда 8800
+        unique_port = 8800
         
         proxy_data = {
             'id': proxy_id,

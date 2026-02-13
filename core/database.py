@@ -1,92 +1,249 @@
-"""Управление данными пользователей (в продакшене заменить на БД)"""
-from typing import Optional, Dict, List
+"""База данных на SQLite"""
+import sqlite3
+import json
+import logging
+import os
+from typing import Dict, List, Optional
 
-class UserDatabase:
-    """Класс для работы с данными пользователей"""
+logger = logging.getLogger(__name__)
+
+
+class Database:
+    """Класс для работы с SQLite базой данных"""
     
-    def __init__(self):
-        self._api_keys: Dict[int, str] = {}
-        self._user_data: Dict[int, dict] = {}
-        self._balances: Dict[int, float] = {}
-        self._user_proxies: Dict[int, List[str]] = {}  # user_id -> список ID прокси
-        self._assigned_proxies: Dict[str, dict] = {}  # proxy_id -> данные прокси с user_id
+    def __init__(self, db_path: str = 'data/bot.db'):
+        self.db_path = db_path
+        # Создаем папку data если не существует
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        self._init_db()
     
-    def set_api_key(self, user_id: int, api_key: str) -> None:
-        """Сохранить API ключ пользователя"""
-        self._api_keys[user_id] = api_key
+    def _get_connection(self):
+        """Получить подключение к БД"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
     
-    def get_api_key(self, user_id: int) -> Optional[str]:
-        """Получить API ключ пользователя"""
-        return self._api_keys.get(user_id)
+    def _init_db(self):
+        """Инициализация базы данных"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Таблица пользователей
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                balance REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Таблица прокси
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS proxies (
+                id TEXT PRIMARY KEY,
+                user_id INTEGER,
+                ip TEXT,
+                port INTEGER,
+                username TEXT,
+                password TEXT,
+                country TEXT,
+                period TEXT,
+                service_type TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+        
+        # Таблица временных данных пользователя
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_data (
+                user_id INTEGER,
+                key TEXT,
+                value TEXT,
+                PRIMARY KEY (user_id, key),
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+        
+        # Таблица транзакций
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount REAL,
+                type TEXT,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        logger.info("База данных SQLite инициализирована")
     
-    def has_api_key(self, user_id: int) -> bool:
-        """Проверить наличие API ключа"""
-        return user_id in self._api_keys
+    def get_user(self, user_id: int) -> Optional[Dict]:
+        """Получить пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return dict(row)
+        return None
     
-    def remove_api_key(self, user_id: int) -> None:
-        """Удалить API ключ пользователя"""
-        self._api_keys.pop(user_id, None)
+    def create_user(self, user_id: int, username: str = None, first_name: str = None):
+        """Создать пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('''
+                INSERT INTO users (user_id, username, first_name, balance)
+                VALUES (?, ?, ?, 1000.0)
+            ''', (user_id, username, first_name))
+            conn.commit()
+            logger.info(f"Создан пользователь {user_id}")
+        except sqlite3.IntegrityError:
+            pass  # Пользователь уже существует
+        finally:
+            conn.close()
     
-    def set_user_data(self, user_id: int, key: str, value) -> None:
-        """Сохранить данные пользователя"""
-        if user_id not in self._user_data:
-            self._user_data[user_id] = {}
-        self._user_data[user_id][key] = value
-    
-    def get_user_data(self, user_id: int, key: str, default=None):
-        """Получить данные пользователя"""
-        return self._user_data.get(user_id, {}).get(key, default)
-    
-    def clear_user_data(self, user_id: int) -> None:
-        """Очистить данные пользователя"""
-        self._user_data.pop(user_id, None)
-    
-    # Методы для работы с балансом
     def get_balance(self, user_id: int) -> float:
         """Получить баланс пользователя"""
-        if user_id not in self._balances:
-            self._balances[user_id] = 1000.0  # Начальный баланс
-        return self._balances[user_id]
+        user = self.get_user(user_id)
+        if not user:
+            self.create_user(user_id)
+            return 1000.0
+        return user['balance']
     
-    def add_balance(self, user_id: int, amount: float) -> float:
+    def add_balance(self, user_id: int, amount: float) -> bool:
         """Пополнить баланс"""
-        current = self.get_balance(user_id)
-        self._balances[user_id] = current + amount
-        return self._balances[user_id]
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE users SET balance = balance + ? WHERE user_id = ?
+        ''', (amount, user_id))
+        
+        # Записываем транзакцию
+        cursor.execute('''
+            INSERT INTO transactions (user_id, amount, type, description)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, amount, 'deposit', 'Пополнение баланса'))
+        
+        conn.commit()
+        conn.close()
+        return True
     
     def subtract_balance(self, user_id: int, amount: float) -> bool:
-        """Списать с баланса (возвращает True если успешно)"""
-        current = self.get_balance(user_id)
-        if current >= amount:
-            self._balances[user_id] = current - amount
-            return True
-        return False
-    
-    # Методы для работы с прокси
-    def assign_proxy(self, user_id: int, proxy_id: str, proxy_data: dict) -> None:
-        """Назначить прокси пользователю"""
-        if user_id not in self._user_proxies:
-            self._user_proxies[user_id] = []
+        """Списать с баланса"""
+        balance = self.get_balance(user_id)
+        if balance < amount:
+            return False
         
-        self._user_proxies[user_id].append(proxy_id)
-        self._assigned_proxies[proxy_id] = {
-            **proxy_data,
-            'user_id': user_id
-        }
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE users SET balance = balance - ? WHERE user_id = ?
+        ''', (amount, user_id))
+        
+        # Записываем транзакцию
+        cursor.execute('''
+            INSERT INTO transactions (user_id, amount, type, description)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, -amount, 'purchase', 'Покупка прокси'))
+        
+        conn.commit()
+        conn.close()
+        return True
     
-    def get_user_proxies(self, user_id: int) -> List[dict]:
+    def assign_proxy(self, user_id: int, proxy_id: str, proxy_data: Dict):
+        """Выдать прокси пользователю"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO proxies (id, user_id, ip, port, username, password, country, period, service_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            proxy_id,
+            user_id,
+            proxy_data['ip'],
+            proxy_data['port'],
+            proxy_data['username'],
+            proxy_data['password'],
+            proxy_data['country'],
+            proxy_data['period'],
+            proxy_data.get('service_type', 'proxy')
+        ))
+        
+        conn.commit()
+        conn.close()
+        logger.info(f"Прокси {proxy_id} выдан пользователю {user_id}")
+    
+    def get_user_proxies(self, user_id: int) -> List[Dict]:
         """Получить все прокси пользователя"""
-        proxy_ids = self._user_proxies.get(user_id, [])
-        return [self._assigned_proxies[pid] for pid in proxy_ids if pid in self._assigned_proxies]
-    
-    def is_proxy_assigned(self, proxy_id: str) -> bool:
-        """Проверить, назначен ли прокси"""
-        return proxy_id in self._assigned_proxies
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM proxies WHERE user_id = ? ORDER BY created_at DESC
+        ''', (user_id,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
     
     def get_proxy_count(self, user_id: int) -> int:
         """Получить количество прокси пользователя"""
-        return len(self._user_proxies.get(user_id, []))
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) as count FROM proxies WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result['count'] if result else 0
+    
+    def set_user_data(self, user_id: int, key: str, value):
+        """Сохранить временные данные пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Создаем пользователя если не существует
+        self.create_user(user_id)
+        
+        cursor.execute('''
+            INSERT OR REPLACE INTO user_data (user_id, key, value)
+            VALUES (?, ?, ?)
+        ''', (user_id, key, json.dumps(value)))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_user_data(self, user_id: int, key: str, default=None):
+        """Получить временные данные пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT value FROM user_data WHERE user_id = ? AND key = ?
+        ''', (user_id, key))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return json.loads(row['value'])
+        return default
 
 
-# Глобальный экземпляр
-db = UserDatabase()
+# Глобальный экземпляр базы данных
+db = Database()

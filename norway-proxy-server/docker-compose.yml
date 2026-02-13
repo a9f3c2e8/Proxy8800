@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  proxy:
+    build: .
+    image: 8800-proxy:latest
+    container_name: 8800-proxy
+    restart: always
+    ports:
+      - "8800:8800"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
