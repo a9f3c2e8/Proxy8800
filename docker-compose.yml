@@ -2,11 +2,14 @@ version: '3.8'
 
 services:
   bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: 8800-telegram-bot
     restart: always
     volumes:
       - ./data:/app/data
+      - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
     logging:
