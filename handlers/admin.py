@@ -19,8 +19,7 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = update.effective_user.id
     
     if not is_admin(user_id):
-        if update.message:
-            await update.message.reply_text("")
+        # Просто игнорируем команду для не-админов
         return
     
     text = (
