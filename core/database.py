@@ -266,6 +266,181 @@ class Database:
         if row:
             return json.loads(row['value'])
         return default
+    
+    # Админ методы
+    def get_admin_stats(self) -> Dict:
+        """Получить статистику для админа"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Общая статистика
+        cursor.execute('SELECT COUNT(*) as count FROM users')
+        total_users = cursor.fetchone()['count']
+        
+        cursor.execute('SELECT COUNT(*) as count FROM proxies')
+        total_proxies = cursor.fetchone()['count']
+        
+        cursor.execute('SELECT SUM(balance) as sum FROM users')
+        total_balance = cursor.fetchone()['sum'] or 0
+        
+        cursor.execute('SELECT COUNT(*) as count FROM transactions')
+        total_transactions = cursor.fetchone()['count']
+        
+        cursor.execute('SELECT SUM(amount) as sum FROM transactions')
+        transactions_sum = cursor.fetchone()['sum'] or 0
+        
+        cursor.execute("SELECT COUNT(*) as count FROM proxies WHERE service_type = 'proxy'")
+        proxy_count = cursor.fetchone()['count']
+        
+        cursor.execute("SELECT COUNT(*) as count FROM proxies WHERE service_type = 'vpn'")
+        vpn_count = cursor.fetchone()['count']
+        
+        conn.close()
+        
+        return {
+            'total_users': total_users,
+            'total_proxies': total_proxies,
+            'total_balance': total_balance,
+            'total_transactions': total_transactions,
+            'transactions_sum': transactions_sum,
+            'proxy_count': proxy_count,
+            'vpn_count': vpn_count
+        }
+    
+    def get_all_users(self, page: int = 0, per_page: int = 10) -> List[Dict]:
+        """Получить всех пользователей с пагинацией"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        offset = page * per_page
+        cursor.execute('''
+            SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?
+        ''', (per_page, offset))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def get_total_users(self) -> int:
+        """Получить общее количество пользователей"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) as count FROM users')
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result['count']
+    
+    def get_all_proxies(self, page: int = 0, per_page: int = 10) -> List[Dict]:
+        """Получить все прокси с пагинацией"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        offset = page * per_page
+        cursor.execute('''
+            SELECT * FROM proxies ORDER BY created_at DESC LIMIT ? OFFSET ?
+        ''', (per_page, offset))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def get_total_proxies(self) -> int:
+        """Получить общее количество прокси"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) as count FROM proxies')
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result['count']
+    
+    def get_all_transactions(self, page: int = 0, per_page: int = 10) -> List[Dict]:
+        """Получить все транзакции с пагинацией"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        offset = page * per_page
+        cursor.execute('''
+            SELECT * FROM transactions ORDER BY created_at DESC LIMIT ? OFFSET ?
+        ''', (per_page, offset))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def get_total_transactions(self) -> int:
+        """Получить общее количество транзакций"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) as count FROM transactions')
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result['count']
+    
+    def get_all_users_ids(self) -> List[int]:
+        """Получить ID всех пользователей"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT user_id FROM users')
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [row['user_id'] for row in rows]
+    
+    def set_balance(self, user_id: int, amount: float):
+        """Установить баланс пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE users SET balance = ? WHERE user_id = ?
+        ''', (amount, user_id))
+        
+        cursor.execute('''
+            INSERT INTO transactions (user_id, amount, type, description)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, amount, 'admin', 'Установка баланса админом'))
+        
+        conn.commit()
+        conn.close()
+    
+    def cleanup_temp_data(self) -> int:
+        """Очистить временные данные"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM user_data')
+        count = cursor.rowcount
+        
+        conn.commit()
+        conn.close()
+        
+        return count
+    
+    def cleanup_old_transactions(self, days: int = 90) -> int:
+        """Удалить старые транзакции"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            DELETE FROM transactions 
+            WHERE created_at < datetime('now', '-' || ? || ' days')
+        ''', (days,))
+        count = cursor.rowcount
+        
+        conn.commit()
+        conn.close()
+        
+        return count
 
 
 # Глобальный экземпляр базы данных

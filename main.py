@@ -23,6 +23,12 @@ from handlers import (
     callback_handler,
     message_handler
 )
+from handlers.admin import (
+    admin_handler,
+    admin_callback_handler,
+    admin_message_handler,
+    is_admin
+)
 
 # Настройка логирования
 logging.basicConfig(
@@ -34,6 +40,9 @@ logger = logging.getLogger(__name__)
 
 def setup_handlers(application: Application) -> None:
     """Регистрация всех обработчиков"""
+    
+    # Админ команды
+    application.add_handler(CommandHandler("admin", admin_handler))
     
     # Команды
     application.add_handler(CommandHandler("start", start_handler))
@@ -49,11 +58,23 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(profile_handler, pattern='^profile$'))
     application.add_handler(CallbackQueryHandler(support_handler, pattern='^support$'))
     
+    # Админ callback обработчики
+    application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern='^admin_'))
+    
     # Общий callback обработчик для процесса покупки
     application.add_handler(CallbackQueryHandler(callback_handler))
     
     # Текстовые сообщения
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Роутер для текстовых сообщений"""
+        if is_admin(update.effective_user.id) and context.user_data.get('waiting_for', '').startswith('admin_'):
+            await admin_message_handler(update, context)
+        elif is_admin(update.effective_user.id) and context.user_data.get('waiting_for') == 'broadcast_message':
+            await admin_message_handler(update, context)
+        else:
+            await message_handler(update, context)
+    
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
 
 def main() -> None:
