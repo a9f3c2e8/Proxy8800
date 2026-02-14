@@ -11,10 +11,16 @@ logger = logging.getLogger(__name__)
 async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать баланс пользователя"""
     query = update.callback_query
+    user_id = update.effective_user.id
+    
+    # Быстрый ответ
     await query.answer()
     
-    user_id = update.effective_user.id
-    balance = db.get_balance(user_id)
+    # Кэшируем данные
+    if 'balance' not in context.user_data:
+        context.user_data['balance'] = db.get_balance(user_id)
+    balance = context.user_data['balance']
+    
     proxy_count = db.get_proxy_count(user_id)
     
     text = (

@@ -13,11 +13,18 @@ logger = logging.getLogger(__name__)
 async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать профиль пользователя"""
     query = update.callback_query
+    user_id = update.effective_user.id
+    
+    # Быстрый ответ
     await query.answer()
     
-    user_id = update.effective_user.id
     username = update.effective_user.username or "Не указан"
-    balance = db.get_balance(user_id)
+    
+    # Кэшируем баланс
+    if 'balance' not in context.user_data:
+        context.user_data['balance'] = db.get_balance(user_id)
+    balance = context.user_data['balance']
+    
     proxy_count = db.get_proxy_count(user_id)
     
     text = (
@@ -73,8 +80,7 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             media=media,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    except Exception as e:
-        logger.error(f"Ошибка редактирования медиа: {e}")
+    except Exception:
         await query.message.delete()
         await query.message.reply_photo(
             photo=MENU_IMAGES['profile'],

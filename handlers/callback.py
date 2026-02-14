@@ -17,10 +17,22 @@ logger = logging.getLogger(__name__)
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Главный роутер для callback запросов"""
     query = update.callback_query
-    await query.answer()
-    
     data = query.data
     user_id = update.effective_user.id
+    
+    # Защита от спама - проверяем последнее нажатие
+    last_callback = context.user_data.get('last_callback', 0)
+    import time
+    current_time = time.time()
+    
+    if current_time - last_callback < 0.5:  # 500ms между нажатиями
+        await query.answer("⏳ Подождите немного", show_alert=False)
+        return
+    
+    context.user_data['last_callback'] = current_time
+    
+    # Быстрый ответ на callback
+    await query.answer()
     
     # Обработка неактивных серверов
     if data == 'server_unavailable':
@@ -54,11 +66,17 @@ async def handle_service_proxy(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     user_id = update.effective_user.id
     
-    # Устанавливаем тип сервиса и фиксированную страну (Нидерланды)
-    db.set_user_data(user_id, 'service_type', 'proxy')
-    db.set_user_data(user_id, 'buy_ip_version', '4')
-    db.set_user_data(user_id, 'buy_type', 'dedicated')
-    db.set_user_data(user_id, 'buy_country', 'nl')  # Нидерланды
+    # Кэшируем данные в context вместо множественных запросов к БД
+    data = {
+        'service_type': 'proxy',
+        'buy_ip_version': '4',
+        'buy_type': 'dedicated',
+        'buy_country': 'nl'
+    }
+    context.user_data.update(data)
+    
+    # Сохраняем в БД одним запросом
+    db.set_user_data_batch(user_id, data)
     
     text = (
         f"📱 <b>Прокси для Telegram</b>\n\n"
@@ -78,11 +96,17 @@ async def handle_service_vpn(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user_id = update.effective_user.id
     
-    # Устанавливаем тип сервиса и фиксированную страну
-    db.set_user_data(user_id, 'service_type', 'vpn')
-    db.set_user_data(user_id, 'buy_ip_version', '4')
-    db.set_user_data(user_id, 'buy_type', 'dedicated')
-    db.set_user_data(user_id, 'buy_country', 'nl')  # Нидерланды
+    # Кэшируем данные в context
+    data = {
+        'service_type': 'vpn',
+        'buy_ip_version': '4',
+        'buy_type': 'dedicated',
+        'buy_country': 'nl'
+    }
+    context.user_data.update(data)
+    
+    # Сохраняем в БД одним запросом
+    db.set_user_data_batch(user_id, data)
     
     text = (
         f"🌐 <b>VPN для всех сервисов</b>\n\n"
@@ -105,6 +129,7 @@ async def handle_country_selection(update: Update, context: ContextTypes.DEFAULT
     user_id = update.effective_user.id
     
     country = data.split('_')[2]
+    context.user_data['buy_country'] = country
     db.set_user_data(user_id, 'buy_country', country)
     
     logger.info(f"Пользователь {user_id} выбрал страну: {country}")
@@ -131,15 +156,18 @@ async def handle_period_selection(update: Update, context: ContextTypes.DEFAULT_
     user_id = update.effective_user.id
     
     period = data.split('_')[2]
+    context.user_data['buy_period'] = period
     db.set_user_data(user_id, 'buy_period', period)
     
     logger.info(f"Пользователь {user_id} выбрал период: {period} дней")
     
-    # Проверяем тип сервиса
-    service_type = db.get_user_data(user_id, 'service_type', 'proxy')
+    # Используем кэш вместо БД
+    service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
+    context.user_data['service_type'] = service_type
     
     if service_type == 'vpn':
         # Для VPN: сразу показываем подтверждение оплаты (количество = 1)
+        context.user_data['buy_quantity'] = 1
         db.set_user_data(user_id, 'buy_quantity', 1)
         
         # Рассчитываем стоимость
@@ -147,9 +175,13 @@ async def handle_period_selection(update: Update, context: ContextTypes.DEFAULT_
         price_per_month = 99.0  # VPN: 99₽ за месяц
         price_per_day = price_per_month / 30
         amount = price_per_day * period_days
+        context.user_data['buy_amount'] = amount
         db.set_user_data(user_id, 'buy_amount', amount)
         
-        balance = db.get_balance(user_id)
+        # Кэшируем баланс
+        if 'balance' not in context.user_data:
+            context.user_data['balance'] = db.get_balance(user_id)
+        balance = context.user_data['balance']
         
         if balance >= amount:
             # Достаточно средств - показываем кнопку "Оплатить"
@@ -206,26 +238,34 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     user_id = update.effective_user.id
     
+    # Используем кэш вместо БД
     order_data = {
-        'country': db.get_user_data(user_id, 'buy_country'),
-        'quantity': db.get_user_data(user_id, 'buy_quantity'),
-        'period': db.get_user_data(user_id, 'buy_period')
+        'country': context.user_data.get('buy_country') or db.get_user_data(user_id, 'buy_country'),
+        'quantity': context.user_data.get('buy_quantity') or db.get_user_data(user_id, 'buy_quantity'),
+        'period': context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period')
     }
     
-    # Получаем стоимость
-    amount = db.get_user_data(user_id, 'buy_amount', 0)
+    # Получаем стоимость из кэша
+    amount = context.user_data.get('buy_amount') or db.get_user_data(user_id, 'buy_amount', 0)
     
     # Проверяем баланс и списываем
     if not db.subtract_balance(user_id, amount):
-        await query.message.edit_text(
-            "❌ <b>Недостаточно средств!</b>\n\n"
-            f"Стоимость заказа: {amount:.2f} ₽\n"
-            f"Ваш баланс: {db.get_balance(user_id):.2f} ₽\n\n"
-            "Пополните баланс и попробуйте снова.",
+        balance = db.get_balance(user_id)
+        context.user_data['balance'] = balance
+        await query.message.edit_caption(
+            caption=(
+                "❌ <b>Недостаточно средств!</b>\n\n"
+                f"Стоимость заказа: {amount:.2f} ₽\n"
+                f"Ваш баланс: {balance:.2f} ₽\n\n"
+                "Пополните баланс и попробуйте снова."
+            ),
             reply_markup=back_to_main_keyboard(),
             parse_mode='HTML'
         )
         return
+    
+    # Обновляем кэш баланса
+    context.user_data['balance'] = db.get_balance(user_id)
     
     # Генерируем прокси данные
     import random
@@ -234,7 +274,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     
     quantity = order_data['quantity']
     country_code = order_data['country']
-    service_type = db.get_user_data(user_id, 'service_type', 'proxy')
+    service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
     
     # IP прокси-сервера
     PROXY_SERVER_IP = "104.233.9.112"

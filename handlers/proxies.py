@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать список активных прокси пользователя"""
     query = update.callback_query
-    await query.answer()
-    
     user_id = update.effective_user.id
+    
+    # Быстрый ответ
+    await query.answer()
     
     # Получаем прокси пользователя из базы
     proxies = db.get_user_proxies(user_id)
@@ -117,9 +118,10 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать только прокси для Telegram"""
     query = update.callback_query
-    await query.answer()
-    
     user_id = update.effective_user.id
+    
+    # Быстрый ответ
+    await query.answer()
     
     # Получаем только прокси (не VPN)
     all_proxies = db.get_user_proxies(user_id)
@@ -193,9 +195,10 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def view_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать только VPN"""
     query = update.callback_query
-    await query.answer()
-    
     user_id = update.effective_user.id
+    
+    # Быстрый ответ
+    await query.answer()
     
     # Получаем только VPN
     all_proxies = db.get_user_proxies(user_id)

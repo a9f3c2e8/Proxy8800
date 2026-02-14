@@ -80,6 +80,11 @@ class Database:
             )
         ''')
         
+        # Индексы для ускорения запросов
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_proxies_user_id ON proxies(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_data_user_id ON user_data(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
+        
         conn.commit()
         conn.close()
         logger.info("База данных SQLite инициализирована")
@@ -224,6 +229,24 @@ class Database:
             INSERT OR REPLACE INTO user_data (user_id, key, value)
             VALUES (?, ?, ?)
         ''', (user_id, key, json.dumps(value)))
+        
+        conn.commit()
+        conn.close()
+    
+    def set_user_data_batch(self, user_id: int, data: Dict):
+        """Сохранить несколько данных пользователя одним запросом"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Создаем пользователя если не существует
+        self.create_user(user_id)
+        
+        # Пакетная вставка
+        values = [(user_id, key, json.dumps(value)) for key, value in data.items()]
+        cursor.executemany('''
+            INSERT OR REPLACE INTO user_data (user_id, key, value)
+            VALUES (?, ?, ?)
+        ''', values)
         
         conn.commit()
         conn.close()

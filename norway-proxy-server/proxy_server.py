@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 class SOCKS5Server:
     """SOCKS5 прокси-сервер"""
     
-    def __init__(self, host: str = '0.0.0.0', port: int = 8800):
+    def __init__(self, host: str = '0.0.0.0', port: int = 8800, require_auth: bool = False):
         self.host = host
         self.port = port
+        self.require_auth = require_auth
         self.active_connections = 0
     
     def verify_credentials(self, username: str, password: str) -> bool:
@@ -33,22 +34,26 @@ class SOCKS5Server:
             # 1. Приветствие
             data = await reader.read(2)
             if len(data) < 2:
+                logger.warning("Недостаточно данных для приветствия")
                 return
             
             version, nmethods = struct.unpack('!BB', data)
             if version != 5:
+                logger.warning(f"Неподдерживаемая версия SOCKS: {version}")
                 return
             
             methods = await reader.read(nmethods)
             
-            # Требуем аутентификацию
-            if 2 in methods:
+            # Выбираем метод аутентификации
+            if self.require_auth and 2 in methods:
+                # Требуем аутентификацию
                 writer.write(struct.pack('!BB', 5, 2))
                 await writer.drain()
                 
                 # 2. Аутентификация
                 auth_data = await reader.read(2)
                 if len(auth_data) < 2:
+                    logger.warning("Недостаточно данных для аутентификации")
                     return
                 
                 auth_version, ulen = struct.unpack('!BB', auth_data)
@@ -63,15 +68,25 @@ class SOCKS5Server:
                 else:
                     writer.write(struct.pack('!BB', 1, 1))
                     await writer.drain()
+                    logger.warning(f"✗ Неверные учетные данные: {username} (len={len(username)}/{len(password)})")
                     return
+            elif not self.require_auth and 0 in methods:
+                writer.write(struct.pack('!BB', 5, 0))
+                await writer.drain()
+                logger.info("✓ Подключение без аутентификации")
             else:
                 writer.write(struct.pack('!BB', 5, 255))
                 await writer.drain()
+                if self.require_auth:
+                    logger.warning("Клиент не поддерживает аутентификацию")
+                else:
+                    logger.warning("Клиент не поддерживает доступные методы")
                 return
             
             # 3. Запрос подключения
             request = await reader.read(4)
             if len(request) < 4:
+                logger.warning("Недостаточно данных для запроса")
                 return
             
             version, cmd, _, atyp = struct.unpack('!BBBB', request)
@@ -79,6 +94,7 @@ class SOCKS5Server:
             if cmd != 1:
                 writer.write(struct.pack('!BBBBIH', 5, 7, 0, 1, 0, 0))
                 await writer.drain()
+                logger.warning(f"Неподдерживаемая команда: {cmd}")
                 return
             
             # Читаем адрес
@@ -94,6 +110,7 @@ class SOCKS5Server:
             else:
                 writer.write(struct.pack('!BBBBIH', 5, 8, 0, 1, 0, 0))
                 await writer.drain()
+                logger.warning(f"Неподдерживаемый тип адреса: {atyp}")
                 return
             
             dst_port = struct.unpack('!H', await reader.read(2))[0]
@@ -123,12 +140,17 @@ class SOCKS5Server:
                     return_exceptions=True
                 )
                 
-            except:
+            except asyncio.TimeoutError:
+                writer.write(struct.pack('!BBBBIH', 5, 4, 0, 1, 0, 0))
+                await writer.drain()
+                logger.error(f"✗ Таймаут подключения к {dst_addr}:{dst_port}")
+            except Exception as e:
                 writer.write(struct.pack('!BBBBIH', 5, 5, 0, 1, 0, 0))
                 await writer.drain()
+                logger.error(f"✗ Ошибка подключения к {dst_addr}:{dst_port}: {e}")
         
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"✗ Ошибка обработки клиента: {e}")
         finally:
             self.active_connections -= 1
             try:
@@ -164,11 +186,12 @@ class SOCKS5Server:
             self.port
         )
         
+        auth_status = "Обязательна" if self.require_auth else "Опциональна (отключена)"
         logger.info(f"")
         logger.info(f"{'='*60}")
         logger.info(f"  SOCKS5 Прокси-сервер 8800.life")
         logger.info(f"  Адрес: {self.host}:{self.port}")
-        logger.info(f"  Аутентификация: Обязательна")
+        logger.info(f"  Аутентификация: {auth_status}")
         logger.info(f"{'='*60}")
         logger.info(f"")
         
@@ -178,7 +201,9 @@ class SOCKS5Server:
 
 async def main():
     """Главная функция"""
-    server = SOCKS5Server(host='0.0.0.0', port=8800)
+    # Читаем настройку из переменной окружения
+    require_auth = os.getenv('REQUIRE_AUTH', 'false').lower() == 'true'
+    server = SOCKS5Server(host='0.0.0.0', port=8800, require_auth=require_auth)
     await server.start()
 
 

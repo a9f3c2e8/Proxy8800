@@ -8,6 +8,9 @@ load_dotenv()
 # Telegram Bot
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8331254337:AAEzG59GjJ-Ysu1eXinSBV6cEq8b-67N9EU")
 
+# Admin
+ADMIN_ID = 1649567897
+
 # Webshare API
 WEBSHARE_API_KEY = "5jxl1vzwdqa3rbodxlf67746h0gfd80d4pldbo9c"
 WEBSHARE_API_URL = "https://proxy.webshare.io/api/v2"

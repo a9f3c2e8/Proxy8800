@@ -40,14 +40,13 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
     # Удаляем сообщение пользователя с числом
     try:
         await update.message.delete()
-    except Exception as e:
-        logger.error(f"Не удалось удалить сообщение: {e}")
+    except Exception:
+        pass
     
     try:
         quantity = int(text)
         
         if quantity < MIN_QUANTITY or quantity > MAX_QUANTITY:
-            # Если неправильное число, отправляем новое сообщение
             await context.bot.send_message(
                 chat_id=user_id,
                 text=f"❌ Введите число от {MIN_QUANTITY} до {MAX_QUANTITY}.",
@@ -55,35 +54,43 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
             )
             return
         
+        # Кэшируем в context
+        context.user_data['buy_quantity'] = quantity
         db.set_user_data(user_id, 'buy_quantity', quantity)
         context.user_data.pop('waiting_for', None)
         
-        # Получаем тип сервиса
-        service_type = db.get_user_data(user_id, 'service_type', 'proxy')
+        # Получаем тип сервиса из кэша
+        service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
+        context.user_data['service_type'] = service_type
         
         # Цены за 1 прокси на 1 месяц (30 дней)
-        if service_type == 'vpn':
-            price_per_month = 99.0  # VPN: 99₽ за месяц
-        else:
-            price_per_month = 50.0  # Прокси: 50₽ за месяц
+        price_per_month = 99.0 if service_type == 'vpn' else 50.0
         
         # Рассчитываем пропорционально периоду
-        period_days = int(db.get_user_data(user_id, 'buy_period'))
-        price_per_day = price_per_month / 30  # цена за 1 день
+        period_days = int(context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period'))
+        price_per_day = price_per_month / 30
         amount = price_per_day * period_days * quantity
+        
+        context.user_data['buy_amount'] = amount
         db.set_user_data(user_id, 'buy_amount', amount)
+        
+        # Кэшируем баланс
+        if 'balance' not in context.user_data:
+            context.user_data['balance'] = db.get_balance(user_id)
+        balance = context.user_data['balance']
         
         # Получаем тип сервиса
         service_name = "📱 Прокси (Telegram)" if service_type == 'proxy' else "🌐 VPN (Все сервисы)"
+        period_name = PERIODS.get(context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period'))
         
         text = (
             f"📝 <b>Подтверждение заказа</b>\n\n"
             f"Сервис: {service_name}\n"
             f"Локация: Ближайшая\n"
             f"Количество: {quantity} шт.\n"
-            f"Период: {PERIODS.get(db.get_user_data(user_id, 'buy_period'))}\n\n"
+            f"Период: {period_name}\n\n"
             f"💰 Стоимость: <b>{amount:.2f} ₽</b>\n\n"
-            f"💳 Ваш баланс: <b>{db.get_balance(user_id):.2f} ₽</b>"
+            f"💳 Ваш баланс: <b>{balance:.2f} ₽</b>"
         )
         
         logger.info(f"Пользователь {user_id} рассчитал заказ: {amount:.2f} ₽")
@@ -92,7 +99,6 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
         quantity_message_id = context.user_data.get('quantity_message_id')
         
         if quantity_message_id:
-            # Редактируем предыдущее сообщение
             try:
                 await context.bot.edit_message_caption(
                     chat_id=user_id,
@@ -102,9 +108,7 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
                     parse_mode='HTML'
                 )
                 context.user_data.pop('quantity_message_id', None)
-            except Exception as e:
-                logger.error(f"Не удалось отредактировать сообщение: {e}")
-                # Если не получилось отредактировать, отправляем новое
+            except Exception:
                 await context.bot.send_message(
                     chat_id=user_id,
                     text=text,
@@ -112,7 +116,6 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
                     parse_mode='HTML'
                 )
         else:
-            # Если нет ID, отправляем новое сообщение
             await context.bot.send_message(
                 chat_id=user_id,
                 text=text,
