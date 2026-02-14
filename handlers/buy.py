@@ -31,21 +31,27 @@ async def buy_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     from keyboards import service_type_keyboard
     
     try:
+        # Используем кэшированный file_id
+        photo_id = context.bot_data.get('locations_photo_file_id', MENU_IMAGES['locations'])
         media = InputMediaPhoto(
-            media=MENU_IMAGES['locations'],
+            media=photo_id,
             caption=text,
             parse_mode='HTML'
         )
-        await query.message.edit_media(
+        msg = await query.message.edit_media(
             media=media,
             reply_markup=service_type_keyboard()
         )
-    except Exception as e:
-        logger.error(f"Ошибка редактирования медиа: {e}")
+        # Сохраняем file_id если это первый раз
+        if 'locations_photo_file_id' not in context.bot_data:
+            context.bot_data['locations_photo_file_id'] = msg.photo[-1].file_id
+    except Exception:
         await query.message.delete()
-        await query.message.reply_photo(
-            photo=MENU_IMAGES['locations'],
+        msg = await query.message.reply_photo(
+            photo=context.bot_data.get('locations_photo_file_id', MENU_IMAGES['locations']),
             caption=text,
             reply_markup=service_type_keyboard(),
             parse_mode='HTML'
         )
+        if 'locations_photo_file_id' not in context.bot_data:
+            context.bot_data['locations_photo_file_id'] = msg.photo[-1].file_id

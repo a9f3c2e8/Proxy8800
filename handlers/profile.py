@@ -71,20 +71,27 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     logger.info(f"Пользователь {user_id} открыл профиль")
     
     try:
+        # Используем кэшированный file_id
+        photo_id = context.bot_data.get('profile_photo_file_id', MENU_IMAGES['profile'])
         media = InputMediaPhoto(
-            media=MENU_IMAGES['profile'],
+            media=photo_id,
             caption=text,
             parse_mode='HTML'
         )
-        await query.message.edit_media(
+        msg = await query.message.edit_media(
             media=media,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        # Сохраняем file_id если это первый раз
+        if 'profile_photo_file_id' not in context.bot_data:
+            context.bot_data['profile_photo_file_id'] = msg.photo[-1].file_id
     except Exception:
         await query.message.delete()
-        await query.message.reply_photo(
-            photo=MENU_IMAGES['profile'],
+        msg = await query.message.reply_photo(
+            photo=context.bot_data.get('profile_photo_file_id', MENU_IMAGES['profile']),
             caption=text,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='HTML'
         )
+        if 'profile_photo_file_id' not in context.bot_data:
+            context.bot_data['profile_photo_file_id'] = msg.photo[-1].file_id

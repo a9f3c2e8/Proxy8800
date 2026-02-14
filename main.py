@@ -38,6 +38,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Отключаем лишние логи httpx
+logging.getLogger('httpx').setLevel(logging.WARNING)
+
 
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Роутер для текстовых сообщений"""

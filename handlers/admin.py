@@ -20,7 +20,7 @@ async def admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     if not is_admin(user_id):
         if update.message:
-            await update.message.reply_text("❌ У вас нет доступа к админ-панели")
+            await update.message.reply_text("")
         return
     
     text = (
@@ -146,24 +146,59 @@ async def admin_users_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def admin_balances_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Управление балансами"""
+    """Управление балансами - выбор пользователя"""
     query = update.callback_query
     await query.answer()
     
     if not is_admin(update.effective_user.id):
         return
     
+    page = context.user_data.get('admin_balance_users_page', 0)
+    per_page = 8
+    
+    users = db.get_all_users(page=page, per_page=per_page)
+    total_users = db.get_total_users()
+    total_pages = (total_users + per_page - 1) // per_page
+    
     text = (
-        "💰 <b>Управление балансами</b>\n\n"
-        "Выберите действие:"
+        f"💰 <b>Управление балансами</b>\n"
+        f"Стр. {page + 1}/{total_pages}\n\n"
+        f"Выберите пользователя:"
     )
     
-    keyboard = [
-        [InlineKeyboardButton("➕ Добавить баланс пользователю", callback_data='admin_add_balance_user')],
-        [InlineKeyboardButton("➖ Списать баланс", callback_data='admin_subtract_balance_user')],
-        [InlineKeyboardButton("🔄 Установить баланс", callback_data='admin_set_balance_user')],
-        [InlineKeyboardButton("◀️ Назад", callback_data='admin_menu')]
-    ]
+    keyboard = []
+    
+    # Кнопки пользователей - по 2 в ряд
+    for i in range(0, len(users), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(users):
+                user = users[i + j]
+                user_id = user['user_id']
+                username = user['username'] or f"ID{user_id}"
+                balance = user['balance']
+                
+                # Короткое имя для кнопки
+                btn_text = f"@{username[:12]}" if user['username'] else f"ID{user_id}"
+                btn_text += f" ({balance:.0f}₽)"
+                
+                row.append(InlineKeyboardButton(
+                    btn_text,
+                    callback_data=f'admin_balance_select_{user_id}'
+                ))
+        keyboard.append(row)
+    
+    # Пагинация
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("⬅️", callback_data='admin_balance_users_prev'))
+    nav_row.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data='admin_balance_users_page'))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton("➡️", callback_data='admin_balance_users_next'))
+    if nav_row:
+        keyboard.append(nav_row)
+    
+    keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data='admin_menu')])
     
     await query.message.edit_text(
         text,
@@ -348,7 +383,23 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data['admin_users_page'] = context.user_data.get('admin_users_page', 0) + 1
         await admin_users_handler(update, context)
     elif data == 'admin_balances':
+        context.user_data['admin_balance_users_page'] = 0
         await admin_balances_handler(update, context)
+    elif data == 'admin_balance_users_prev':
+        context.user_data['admin_balance_users_page'] = max(0, context.user_data.get('admin_balance_users_page', 0) - 1)
+        await admin_balances_handler(update, context)
+    elif data == 'admin_balance_users_next':
+        context.user_data['admin_balance_users_page'] = context.user_data.get('admin_balance_users_page', 0) + 1
+        await admin_balances_handler(update, context)
+    elif data.startswith('admin_balance_select_'):
+        user_id = int(data.split('_')[-1])
+        context.user_data['selected_user_id'] = user_id
+        await admin_balance_action_handler(update, context, user_id)
+    elif data.startswith('admin_balance_action_'):
+        action = data.split('_')[-1]
+        user_id = context.user_data.get('selected_user_id')
+        if user_id:
+            await admin_balance_input_handler(update, context, user_id, action)
     elif data == 'admin_proxies':
         context.user_data['admin_proxies_page'] = 0
         await admin_proxies_handler(update, context)
@@ -385,38 +436,81 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data='admin_menu')]]),
             parse_mode='HTML'
         )
-    elif data == 'admin_add_balance_user':
-        context.user_data['waiting_for'] = 'admin_add_balance_input'
-        await query.message.edit_text(
-            "➕ <b>Добавить баланс</b>\n\n"
-            "Отправьте в формате:\n"
-            "<code>USER_ID СУММА</code>\n\n"
-            "Пример: <code>123456789 100</code>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Отмена", callback_data='admin_balances')]]),
-            parse_mode='HTML'
-        )
-    elif data == 'admin_subtract_balance_user':
-        context.user_data['waiting_for'] = 'admin_subtract_balance_input'
-        await query.message.edit_text(
-            "➖ <b>Списать баланс</b>\n\n"
-            "Отправьте в формате:\n"
-            "<code>USER_ID СУММА</code>\n\n"
-            "Пример: <code>123456789 50</code>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Отмена", callback_data='admin_balances')]]),
-            parse_mode='HTML'
-        )
-    elif data == 'admin_set_balance_user':
-        context.user_data['waiting_for'] = 'admin_set_balance_input'
-        await query.message.edit_text(
-            "🔄 <b>Установить баланс</b>\n\n"
-            "Отправьте в формате:\n"
-            "<code>USER_ID СУММА</code>\n\n"
-            "Пример: <code>123456789 200</code>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Отмена", callback_data='admin_balances')]]),
-            parse_mode='HTML'
-        )
     elif data == 'admin_close':
         await query.message.delete()
+
+
+async def admin_balance_action_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
+    """Выбор действия с балансом пользователя"""
+    query = update.callback_query
+    
+    user = db.get_user(user_id)
+    if not user:
+        await query.message.edit_text(
+            "❌ Пользователь не найден",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data='admin_balances')]]),
+            parse_mode='HTML'
+        )
+        return
+    
+    username = user['username'] or f"ID{user_id}"
+    balance = user['balance']
+    
+    text = (
+        f"💰 <b>Управление балансом</b>\n\n"
+        f"Пользователь: @{username}\n"
+        f"ID: <code>{user_id}</code>\n"
+        f"Текущий баланс: <b>{balance:.2f} ₽</b>\n\n"
+        f"Выберите действие:"
+    )
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("➕ Добавить", callback_data='admin_balance_action_add'),
+            InlineKeyboardButton("➖ Списать", callback_data='admin_balance_action_subtract')
+        ],
+        [InlineKeyboardButton("🔄 Установить", callback_data='admin_balance_action_set')],
+        [InlineKeyboardButton("◀️ Назад", callback_data='admin_balances')]
+    ]
+    
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+
+async def admin_balance_input_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, action: str) -> None:
+    """Запрос суммы для операции с балансом"""
+    query = update.callback_query
+    
+    user = db.get_user(user_id)
+    username = user['username'] or f"ID{user_id}"
+    balance = user['balance']
+    
+    action_text = {
+        'add': '➕ Добавить баланс',
+        'subtract': '➖ Списать баланс',
+        'set': '🔄 Установить баланс'
+    }
+    
+    text = (
+        f"{action_text.get(action, 'Операция')}\n\n"
+        f"Пользователь: @{username}\n"
+        f"Текущий баланс: <b>{balance:.2f} ₽</b>\n\n"
+        f"Отправьте сумму числом:"
+    )
+    
+    context.user_data['waiting_for'] = f'admin_balance_{action}'
+    context.user_data['selected_user_id'] = user_id
+    
+    keyboard = [[InlineKeyboardButton("❌ Отмена", callback_data='admin_balances')]]
+    
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
 
 
 async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -450,51 +544,56 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await status_msg.edit_text(
             f"✅ <b>Рассылка завершена!</b>\n\n"
             f"Успешно: {success}\n"
-            f"Ошибок: {failed}"
+            f"Ошибок: {failed}",
+            parse_mode='HTML'
         )
     
-    elif waiting_for == 'admin_add_balance_input':
+    elif waiting_for == 'admin_balance_add':
         try:
-            parts = text.split()
-            user_id = int(parts[0])
-            amount = float(parts[1])
+            amount = float(text)
+            user_id = context.user_data.get('selected_user_id')
             
             db.add_balance(user_id, amount)
             context.user_data.pop('waiting_for', None)
             
+            new_balance = db.get_balance(user_id)
             await update.message.reply_text(
-                f"✅ Добавлено {amount:.2f}₽ пользователю {user_id}"
+                f"✅ Добавлено {amount:.2f}₽\n"
+                f"Новый баланс: {new_balance:.2f}₽",
+                parse_mode='HTML'
             )
         except Exception as e:
             await update.message.reply_text(f"❌ Ошибка: {e}")
     
-    elif waiting_for == 'admin_subtract_balance_input':
+    elif waiting_for == 'admin_balance_subtract':
         try:
-            parts = text.split()
-            user_id = int(parts[0])
-            amount = float(parts[1])
+            amount = float(text)
+            user_id = context.user_data.get('selected_user_id')
             
             if db.subtract_balance(user_id, amount):
                 context.user_data.pop('waiting_for', None)
+                new_balance = db.get_balance(user_id)
                 await update.message.reply_text(
-                    f"✅ Списано {amount:.2f}₽ у пользователя {user_id}"
+                    f"✅ Списано {amount:.2f}₽\n"
+                    f"Новый баланс: {new_balance:.2f}₽",
+                    parse_mode='HTML'
                 )
             else:
                 await update.message.reply_text("❌ Недостаточно средств")
         except Exception as e:
             await update.message.reply_text(f"❌ Ошибка: {e}")
     
-    elif waiting_for == 'admin_set_balance_input':
+    elif waiting_for == 'admin_balance_set':
         try:
-            parts = text.split()
-            user_id = int(parts[0])
-            amount = float(parts[1])
+            amount = float(text)
+            user_id = context.user_data.get('selected_user_id')
             
             db.set_balance(user_id, amount)
             context.user_data.pop('waiting_for', None)
             
             await update.message.reply_text(
-                f"✅ Установлен баланс {amount:.2f}₽ пользователю {user_id}"
+                f"✅ Установлен баланс {amount:.2f}₽",
+                parse_mode='HTML'
             )
         except Exception as e:
             await update.message.reply_text(f"❌ Ошибка: {e}")
