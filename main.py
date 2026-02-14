@@ -6,7 +6,8 @@ from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
-    filters
+    filters,
+    ContextTypes
 )
 
 from core.config import BOT_TOKEN
@@ -38,6 +39,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Роутер для текстовых сообщений"""
+    if is_admin(update.effective_user.id) and context.user_data.get('waiting_for', '').startswith('admin_'):
+        await admin_message_handler(update, context)
+    elif is_admin(update.effective_user.id) and context.user_data.get('waiting_for') == 'broadcast_message':
+        await admin_message_handler(update, context)
+    else:
+        await message_handler(update, context)
+
+
 def setup_handlers(application: Application) -> None:
     """Регистрация всех обработчиков"""
     
@@ -65,21 +76,12 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(callback_handler))
     
     # Текстовые сообщения
-    async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Роутер для текстовых сообщений"""
-        if is_admin(update.effective_user.id) and context.user_data.get('waiting_for', '').startswith('admin_'):
-            await admin_message_handler(update, context)
-        elif is_admin(update.effective_user.id) and context.user_data.get('waiting_for') == 'broadcast_message':
-            await admin_message_handler(update, context)
-        else:
-            await message_handler(update, context)
-    
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
 
 def main() -> None:
     """Запуск бота"""
-    logger.info("Запуск Proxylin Bot...")
+    logger.info("Запуск минетчицы...")
     
     # Создание приложения
     application = Application.builder().token(BOT_TOKEN).build()
