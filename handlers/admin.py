@@ -315,8 +315,15 @@ async def admin_broadcast_handler(update: Update, context: ContextTypes.DEFAULT_
     
     text = (
         "📢 <b>Рассылка</b>\n\n"
-        "Отправьте сообщение, которое хотите разослать всем пользователям.\n\n"
-        "<i>Для отмены отправьте /cancel</i>"
+        "Отправьте сообщение для рассылки.\n\n"
+        "✅ Поддерживается:\n"
+        "• Премиум эмодзи 🌟\n"
+        "• HTML форматирование\n"
+        "• Markdown форматирование\n"
+        "• Жирный, курсив, подчеркнутый текст\n"
+        "• Ссылки и кнопки\n"
+        "• Картинки, видео, файлы\n\n"
+        "<i>Для отмены нажмите кнопку ниже</i>"
     )
     
     context.user_data['waiting_for'] = 'broadcast_message'
@@ -518,10 +525,9 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
     
     waiting_for = context.user_data.get('waiting_for')
-    text = update.message.text
     
     if waiting_for == 'broadcast_message':
-        # Рассылка
+        # Рассылка с поддержкой всех форматов и премиум эмодзи
         users = db.get_all_users_ids()
         success = 0
         failed = 0
@@ -531,9 +537,10 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
             f"Всего пользователей: {len(users)}"
         )
         
+        # Копируем сообщение со всеми форматами, эмодзи и entities
         for user_id in users:
             try:
-                await context.bot.send_message(chat_id=user_id, text=text, parse_mode='HTML')
+                await update.message.copy(chat_id=user_id)
                 success += 1
             except Exception:
                 failed += 1
@@ -549,7 +556,7 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     elif waiting_for == 'admin_balance_add':
         try:
-            amount = float(text)
+            amount = float(update.message.text)
             user_id = context.user_data.get('selected_user_id')
             
             db.add_balance(user_id, amount)
@@ -566,7 +573,7 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     elif waiting_for == 'admin_balance_subtract':
         try:
-            amount = float(text)
+            amount = float(update.message.text)
             user_id = context.user_data.get('selected_user_id')
             
             if db.subtract_balance(user_id, amount):
@@ -584,7 +591,7 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     elif waiting_for == 'admin_balance_set':
         try:
-            amount = float(text)
+            amount = float(update.message.text)
             user_id = context.user_data.get('selected_user_id')
             
             db.set_balance(user_id, amount)
