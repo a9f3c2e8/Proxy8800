@@ -27,7 +27,7 @@ class MTProtoProxy:
         5: [('149.154.171.5', 443)],
     }
     
-    def __init__(self, host='0.0.0.0', port=443, secret=None, domain='8800.life'):
+    def __init__(self, host='0.0.0.0', port=8800, secret=None, domain='8800.life'):
         self.host = host
         self.port = port
         self.domain = domain
@@ -176,7 +176,7 @@ class MTProtoProxy:
 
 async def main():
     """Главная функция"""
-    port = int(os.getenv('MTPROTO_PORT', '443'))
+    port = int(os.getenv('MTPROTO_PORT', '8800'))
     secret = os.getenv('MTPROTO_SECRET', None)
     domain = os.getenv('DOMAIN', '8800.life')
     

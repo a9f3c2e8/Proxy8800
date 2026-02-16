@@ -295,7 +295,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
             secret = 'dd' + secrets.token_hex(16)
             username = secret  # Сохраняем секрет как username
             password = ''  # Пароль не нужен для MTProto
-            unique_port = 443  # MTProto на 443 порту
+            unique_port = 8800  # MTProto на 8800 порту
         else:
             # Для VPN генерируем логин и пароль (8 символов)
             username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))

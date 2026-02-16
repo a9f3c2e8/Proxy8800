@@ -476,7 +476,7 @@ class ProxyAPIServer:
             days = data.get('days', 30)
             traffic_limit = data.get('traffic_limit', 0)
             domain = data.get('domain', '8800.life')
-            port = data.get('port', 443)
+            port = data.get('port', 8800)
             
             success = self.db.create_mtproto_secret(secret, telegram_user_id, days, traffic_limit)
             
