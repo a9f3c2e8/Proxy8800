@@ -12,8 +12,11 @@ apt update && apt upgrade -y
 curl -fsSL https://get.docker.com -o get-docker.sh
 sh get-docker.sh
 
-# Установить Docker Compose
-apt install docker-compose -y
+# Установить Docker Compose (новая версия)
+apt install docker-compose-plugin -y
+
+# Или старая версия (если нужна)
+# apt install docker-compose -y
 ```
 
 ### 2. Настройка проекта

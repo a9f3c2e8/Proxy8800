@@ -30,8 +30,8 @@ chmod +x deploy.sh
 # Установить Docker
 curl -fsSL https://get.docker.com | sh
 
-# Установить Docker Compose
-apt install docker-compose -y
+# Установить Docker Compose (новая версия)
+apt install docker-compose-plugin -y
 
 # Настроить .env
 nano .env

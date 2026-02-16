@@ -70,20 +70,49 @@ echo ""
 
 # Проверяем Docker
 echo "🐳 Проверка Docker:"
-if docker ps | grep -q "8800-proxy"; then
-    echo "✅ Контейнер 8800-proxy запущен"
-    PROXY_STATUS="running"
+
+# Определяем версию docker compose
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+elif docker compose version &> /dev/null 2>&1; then
+    DOCKER_COMPOSE="docker compose"
 else
-    echo "❌ Контейнер 8800-proxy не запущен"
-    PROXY_STATUS="stopped"
+    echo "❌ Docker Compose не найден"
+    DOCKER_COMPOSE=""
 fi
 
-if docker ps | grep -q "8800-telegram-bot"; then
-    echo "✅ Контейнер 8800-telegram-bot запущен"
-    BOT_STATUS="running"
+if [ -n "$DOCKER_COMPOSE" ]; then
+    if $DOCKER_COMPOSE ps 2>/dev/null | grep -q "8800-proxy"; then
+        echo "✅ Контейнер 8800-proxy запущен"
+        PROXY_STATUS="running"
+    else
+        echo "❌ Контейнер 8800-proxy не запущен"
+        PROXY_STATUS="stopped"
+    fi
+
+    if $DOCKER_COMPOSE ps 2>/dev/null | grep -q "8800-telegram-bot"; then
+        echo "✅ Контейнер 8800-telegram-bot запущен"
+        BOT_STATUS="running"
+    else
+        echo "❌ Контейнер 8800-telegram-bot не запущен"
+        BOT_STATUS="stopped"
+    fi
 else
-    echo "❌ Контейнер 8800-telegram-bot не запущен"
-    BOT_STATUS="stopped"
+    if docker ps | grep -q "8800-proxy"; then
+        echo "✅ Контейнер 8800-proxy запущен"
+        PROXY_STATUS="running"
+    else
+        echo "❌ Контейнер 8800-proxy не запущен"
+        PROXY_STATUS="stopped"
+    fi
+
+    if docker ps | grep -q "8800-telegram-bot"; then
+        echo "✅ Контейнер 8800-telegram-bot запущен"
+        BOT_STATUS="running"
+    else
+        echo "❌ Контейнер 8800-telegram-bot не запущен"
+        BOT_STATUS="stopped"
+    fi
 fi
 echo ""
 

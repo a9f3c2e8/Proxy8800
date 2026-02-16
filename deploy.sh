@@ -12,14 +12,18 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Проверка Docker Compose
-if ! command -v docker-compose &> /dev/null; then
+# Проверка Docker Compose (новая или старая версия)
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
     echo "❌ Docker Compose не установлен!"
-    echo "Установите: apt install docker-compose -y"
+    echo "Установите: apt install docker-compose-plugin -y"
     exit 1
 fi
 
-echo "✅ Docker и Docker Compose установлены"
+echo "✅ Docker и Docker Compose установлены ($DOCKER_COMPOSE)"
 echo ""
 
 # Проверка .env файла
@@ -52,7 +56,7 @@ fi
 
 echo ""
 echo "🔨 Сборка контейнеров..."
-docker-compose build
+$DOCKER_COMPOSE build
 
 if [ $? -ne 0 ]; then
     echo "❌ Ошибка сборки!"
@@ -61,7 +65,7 @@ fi
 
 echo ""
 echo "🚀 Запуск сервисов..."
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 
 if [ $? -ne 0 ]; then
     echo "❌ Ошибка запуска!"
@@ -74,7 +78,7 @@ sleep 5
 
 echo ""
 echo "📊 Статус сервисов:"
-docker-compose ps
+$DOCKER_COMPOSE ps
 
 echo ""
 echo "=================================="
@@ -91,5 +95,5 @@ echo "   make restart    - Перезапустить"
 echo "   make down       - Остановить"
 echo ""
 echo "📝 Логи прокси-сервера:"
-docker-compose logs --tail=20 proxy
+$DOCKER_COMPOSE logs --tail=20 proxy
 echo ""

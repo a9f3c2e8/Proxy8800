@@ -1,16 +1,19 @@
 .PHONY: build up down restart logs clean status
 
+# Определяем версию docker compose
+DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
+
 # Быстрая сборка (с кешем)
 build:
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 
 # Быстрая сборка без кеша (если что-то сломалось)
 rebuild:
-	docker-compose build --no-cache
+	$(DOCKER_COMPOSE) build --no-cache
 
 # Запуск
 up:
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "✅ Сервисы запущены!"
 	@echo "Проверить статус: make status"
@@ -18,40 +21,40 @@ up:
 
 # Остановка
 down:
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 
 # Перезапуск
 restart:
-	docker-compose restart
+	$(DOCKER_COMPOSE) restart
 
 # Логи всех сервисов
 logs:
-	docker-compose logs -f --tail=100
+	$(DOCKER_COMPOSE) logs -f --tail=100
 
 # Логи бота
 logs-bot:
-	docker-compose logs -f --tail=100 bot
+	$(DOCKER_COMPOSE) logs -f --tail=100 bot
 
 # Логи прокси
 logs-proxy:
-	docker-compose logs -f --tail=100 proxy
+	$(DOCKER_COMPOSE) logs -f --tail=100 proxy
 
 # Статус
 status:
-	docker-compose ps
+	$(DOCKER_COMPOSE) ps
 
 # Очистка
 clean:
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
 
 # Обновление (быстрое)
 update:
-	docker-compose down
-	docker-compose up -d --build
+	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) up -d --build
 
 # Полная переустановка
 reinstall:
-	docker-compose down -v
-	docker-compose build --no-cache
-	docker-compose up -d
+	$(DOCKER_COMPOSE) down -v
+	$(DOCKER_COMPOSE) build --no-cache
+	$(DOCKER_COMPOSE) up -d
