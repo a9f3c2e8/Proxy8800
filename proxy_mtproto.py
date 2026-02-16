@@ -63,8 +63,6 @@ class MTProtoProxy:
     
     def create_aes_ctr(self, key, iv):
         """Создать AES-CTR шифр"""
-        # Преобразуем IV в counter для CTR режима
-        counter = int.from_bytes(iv, byteorder='big')
         cipher = Cipher(
             algorithms.AES(key),
             modes.CTR(iv),
@@ -92,11 +90,8 @@ class MTProtoProxy:
             encrypted_tag = handshake[56:64]
             
             # Создаем ключи для расшифровки по протоколу MTProto
-            # Используем SHA256(nonce + secret) для генерации ключевого материала
             key_material = hashlib.sha256(nonce + self.secret_bytes).digest()
             
-            # Первые 16 байт - ключ для расшифровки от клиента
-            # Следующие 16 байт - IV для расшифровки от клиента
             decrypt_key = key_material[:16]
             decrypt_iv = key_material[16:32]
             
@@ -104,10 +99,6 @@ class MTProtoProxy:
             cipher = self.create_aes_ctr(decrypt_key, decrypt_iv)
             decryptor = cipher.decryptor()
             decrypted_tag = decryptor.update(encrypted_tag)
-            
-            # Проверяем протокол (первые 4 байта тега)
-            protocol_tag = struct.unpack('<I', decrypted_tag[:4])[0]
-            logger.debug(f"Protocol tag: 0x{protocol_tag:08x}")
             
             # Определяем DC (обычно DC2)
             dc_id = 2
@@ -121,24 +112,20 @@ class MTProtoProxy:
             
             logger.info(f"✓ Подключено к Telegram DC{dc_id}")
             
-            # Создаем handshake для Telegram (без нашего секрета)
-            # Отправляем оригинальный nonce + расшифрованный тег
+            # Создаем handshake для Telegram
             telegram_handshake = nonce + decrypted_tag
             telegram_writer.write(telegram_handshake)
             await telegram_writer.drain()
             
             # Создаем ключи для шифрования в обратную сторону
-            # Для шифрования к клиенту используем обратный порядок
             encrypt_key_material = hashlib.sha256(self.secret_bytes + nonce).digest()
             encrypt_key = encrypt_key_material[:16]
             encrypt_iv = encrypt_key_material[16:32]
             
             # Создаем шифры для обеих сторон
-            # Клиент -> Telegram: расшифровываем
             client_decrypt_cipher = self.create_aes_ctr(decrypt_key, decrypt_iv)
             client_decryptor = client_decrypt_cipher.decryptor()
             
-            # Telegram -> Клиент: зашифровываем
             client_encrypt_cipher = self.create_aes_ctr(encrypt_key, encrypt_iv)
             client_encryptor = client_encrypt_cipher.encryptor()
             
@@ -162,7 +149,6 @@ class MTProtoProxy:
         finally:
             self.active_connections -= 1
             
-            # Закрываем соединения
             if telegram_writer:
                 try:
                     telegram_writer.close()
@@ -186,14 +172,12 @@ class MTProtoProxy:
                 if not data:
                     break
                 
-                # Шифруем/дешифруем данные
                 if crypto:
                     data = crypto.update(data)
                 
                 writer.write(data)
                 await writer.drain()
                 
-                # Статистика
                 if "client->telegram" in direction:
                     self.stats['bytes_sent'] += len(data)
                 else:
@@ -241,9 +225,9 @@ class MTProtoProxy:
 
 async def main():
     """Главная функция"""
-    port = int(os.getenv('MTPROTO_PORT', '8800'))
+    port = int(os.getenv('PROXY_PORT', '8800'))
     secret = os.getenv('MTPROTO_SECRET', None)
-    domain = os.getenv('DOMAIN', '8800.life')
+    domain = os.getenv('PROXY_DOMAIN', '8800.life')
     
     proxy = MTProtoProxy(host='0.0.0.0', port=port, secret=secret, domain=domain)
     await proxy.start()
