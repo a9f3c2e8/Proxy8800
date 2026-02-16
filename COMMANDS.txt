@@ -9,7 +9,7 @@ ssh root@104.233.9.112
 cd /root/Proxy8800
 
 # 3. СДЕЛАТЬ СКРИПТЫ ИСПОЛНЯЕМЫМИ
-chmod +x deploy.sh check-config.sh
+chmod +x deploy.sh check-config.sh rebuild-bot.sh
 
 # 4. НАСТРОИТЬ .ENV (ВАЖНО!)
 nano .env
@@ -19,14 +19,18 @@ nano .env
 # 5. ЗАПУСТИТЬ ВСЁ
 ./deploy.sh
 
-# 6. ПРОВЕРИТЬ КОНФИГУРАЦИЮ
+# 6. ЕСЛИ НУЖНО ПЕРЕСОБРАТЬ БОТА
+chmod +x rebuild-bot.sh
+./rebuild-bot.sh
+
+# 7. ПРОВЕРИТЬ КОНФИГУРАЦИЮ
 ./check-config.sh
 
-# 7. ПОСМОТРЕТЬ ЛОГИ
-make logs
+# 8. ПОСМОТРЕТЬ ЛОГИ
+docker compose logs -f
 
-# 8. СТАТУС СЕРВИСОВ
-make status
+# 9. СТАТУС СЕРВИСОВ
+docker compose ps
 
 ===========================================
   Управление
@@ -40,6 +44,17 @@ make logs       # Все логи
 make logs-bot   # Логи бота
 make logs-proxy # Логи прокси
 make status     # Статус
+
+# Или напрямую через docker compose:
+docker compose build
+docker compose up -d
+docker compose down
+docker compose restart
+docker compose logs -f
+docker compose ps
+
+# Пересобрать только бота
+./rebuild-bot.sh
 
 ===========================================
   Проверка работы
