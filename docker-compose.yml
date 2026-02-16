@@ -6,8 +6,6 @@ services:
     image: 8800-bot:latest
     container_name: 8800-telegram-bot
     restart: always
-    ports:
-      - "8800:8800"
     volumes:
       - ./core:/app/core
       - ./handlers:/app/handlers
@@ -15,15 +13,12 @@ services:
       - ./services:/app/services
       - ./utils:/app/utils
       - ./main.py:/app/main.py
-      - ./proxy_mtproto.py:/app/proxy_mtproto.py
-      - ./start_all.sh:/app/start_all.sh
       - ./data:/app/data
       - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
-      - PROXY_DOMAIN=${PROXY_DOMAIN:-8800.life}
-      - PROXY_PORT=${PROXY_PORT:-8800}
-      - MTPROTO_SECRET=${MTPROTO_SECRET:-dd2ae5891b2b9b9b811b212050843193aa}
+      - PROXY_DOMAIN=8800.life
+      - PROXY_PORT=8800
     logging:
       driver: "json-file"
       options:
