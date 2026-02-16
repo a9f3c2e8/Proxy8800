@@ -1,12 +1,12 @@
 """MTProto прокси-сервер для Telegram"""
 import asyncio
-import socket
 import logging
 import os
 import secrets
 import hashlib
 import struct
-from datetime import datetime
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,7 +39,12 @@ class MTProtoProxy:
             self.secret = 'dd' + secrets.token_hex(16)
         
         # Парсим секрет
-        self.secret_bytes = bytes.fromhex(self.secret[2:] if self.secret.startswith('dd') else self.secret)
+        if self.secret.startswith('dd'):
+            self.secret_bytes = bytes.fromhex(self.secret[2:])
+            self.random_padding = True
+        else:
+            self.secret_bytes = bytes.fromhex(self.secret)
+            self.random_padding = False
         
         self.active_connections = 0
         self.stats = {
@@ -56,9 +61,16 @@ class MTProtoProxy:
         """Получить tg:// ссылку"""
         return f"tg://proxy?server={self.domain}&port={self.port}&secret={self.secret}"
     
-    def xor_bytes(self, data, key):
-        """XOR шифрование"""
-        return bytes(a ^ b for a, b in zip(data, key * (len(data) // len(key) + 1)))
+    def create_aes_ctr(self, key, iv):
+        """Создать AES-CTR шифр"""
+        # Преобразуем IV в counter для CTR режима
+        counter = int.from_bytes(iv, byteorder='big')
+        cipher = Cipher(
+            algorithms.AES(key),
+            modes.CTR(iv),
+            backend=default_backend()
+        )
+        return cipher
     
     async def handle_client(self, client_reader, client_writer):
         """Обработка клиента MTProto"""
@@ -75,18 +87,29 @@ class MTProtoProxy:
             # Читаем первые 64 байта (handshake)
             handshake = await asyncio.wait_for(client_reader.readexactly(64), timeout=10)
             
-            # Проверяем протокол
-            # Первые 56 байт - nonce, следующие 8 - protocol tag
+            # Извлекаем nonce (первые 56 байт) и зашифрованный тег (последние 8 байт)
             nonce = handshake[:56]
-            protocol_tag = handshake[56:64]
+            encrypted_tag = handshake[56:64]
             
-            # Создаем ключи шифрования из nonce и секрета
-            init_key = hashlib.sha256(nonce + self.secret_bytes).digest()
+            # Создаем ключи для расшифровки по протоколу MTProto
+            # Используем SHA256(nonce + secret) для генерации ключевого материала
+            key_material = hashlib.sha256(nonce + self.secret_bytes).digest()
             
-            # Расшифровываем protocol tag
-            decrypted_tag = self.xor_bytes(protocol_tag, init_key[:8])
+            # Первые 16 байт - ключ для расшифровки от клиента
+            # Следующие 16 байт - IV для расшифровки от клиента
+            decrypt_key = key_material[:16]
+            decrypt_iv = key_material[16:32]
             
-            # Определяем DC из тега (обычно DC2)
+            # Расшифровываем тег
+            cipher = self.create_aes_ctr(decrypt_key, decrypt_iv)
+            decryptor = cipher.decryptor()
+            decrypted_tag = decryptor.update(encrypted_tag)
+            
+            # Проверяем протокол (первые 4 байта тега)
+            protocol_tag = struct.unpack('<I', decrypted_tag[:4])[0]
+            logger.debug(f"Protocol tag: 0x{protocol_tag:08x}")
+            
+            # Определяем DC (обычно DC2)
             dc_id = 2
             telegram_host, telegram_port = self.TELEGRAM_SERVERS[dc_id]
             
@@ -96,20 +119,33 @@ class MTProtoProxy:
                 timeout=10
             )
             
-            logger.info(f"✓ Подключено к Telegram DC{dc_id} ({telegram_host})")
+            logger.info(f"✓ Подключено к Telegram DC{dc_id}")
             
-            # Создаем новый handshake для Telegram (без нашего секрета)
-            # Telegram ожидает стандартный MTProto handshake
+            # Создаем handshake для Telegram (без нашего секрета)
+            # Отправляем оригинальный nonce + расшифрованный тег
             telegram_handshake = nonce + decrypted_tag
-            
-            # Отправляем handshake в Telegram
             telegram_writer.write(telegram_handshake)
             await telegram_writer.drain()
             
+            # Создаем ключи для шифрования в обратную сторону
+            # Для шифрования к клиенту используем обратный порядок
+            encrypt_key_material = hashlib.sha256(self.secret_bytes + nonce).digest()
+            encrypt_key = encrypt_key_material[:16]
+            encrypt_iv = encrypt_key_material[16:32]
+            
+            # Создаем шифры для обеих сторон
+            # Клиент -> Telegram: расшифровываем
+            client_decrypt_cipher = self.create_aes_ctr(decrypt_key, decrypt_iv)
+            client_decryptor = client_decrypt_cipher.decryptor()
+            
+            # Telegram -> Клиент: зашифровываем
+            client_encrypt_cipher = self.create_aes_ctr(encrypt_key, encrypt_iv)
+            client_encryptor = client_encrypt_cipher.encryptor()
+            
             # Проксируем данные в обе стороны
             await asyncio.gather(
-                self.pipe_data(client_reader, telegram_writer, init_key, "client->telegram"),
-                self.pipe_data(telegram_reader, client_writer, init_key, "telegram->client"),
+                self.pipe_data(client_reader, telegram_writer, client_decryptor, "client->telegram"),
+                self.pipe_data(telegram_reader, client_writer, client_encryptor, "telegram->client"),
                 return_exceptions=True
             )
             
@@ -119,8 +155,10 @@ class MTProtoProxy:
             logger.debug("Клиент отключился во время handshake")
         except ConnectionRefusedError:
             logger.error("Не удалось подключиться к Telegram DC")
+        except OSError as e:
+            logger.error(f"Ошибка сети: {e}")
         except Exception as e:
-            logger.error(f"Ошибка: {e}")
+            logger.error(f"Ошибка: {e}", exc_info=True)
         finally:
             self.active_connections -= 1
             
@@ -140,17 +178,18 @@ class MTProtoProxy:
             
             logger.info(f"[{self.active_connections}] Соединение закрыто")
     
-    async def pipe_data(self, reader, writer, key, direction):
-        """Проксирование данных с шифрованием"""
+    async def pipe_data(self, reader, writer, crypto, direction):
+        """Проксирование данных с шифрованием/дешифрованием"""
         try:
-            offset = 0
             while True:
                 data = await reader.read(16384)
                 if not data:
                     break
                 
-                # Для MTProto данные могут быть зашифрованы
-                # В простой реализации просто передаем как есть
+                # Шифруем/дешифруем данные
+                if crypto:
+                    data = crypto.update(data)
+                
                 writer.write(data)
                 await writer.drain()
                 
@@ -159,8 +198,6 @@ class MTProtoProxy:
                     self.stats['bytes_sent'] += len(data)
                 else:
                     self.stats['bytes_received'] += len(data)
-                
-                offset += len(data)
                     
         except asyncio.CancelledError:
             pass

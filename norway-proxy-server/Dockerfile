@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Установка зависимостей
-RUN pip install --no-cache-dir aiohttp
+RUN pip install --no-cache-dir aiohttp cryptography
 
 # Копирование файлов
 COPY mtproto_server.py .

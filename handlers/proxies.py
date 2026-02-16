@@ -62,6 +62,7 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             country_code = proxy.get('country', 'N/A').lower()
             country_name = COUNTRIES.get(country_code, country_code.upper())
             period = proxy.get('period', 'N/A')
+            service_type = proxy.get('service_type', 'proxy')
             
             # Создаем ссылку для подключения к Telegram (MTProto)
             if service_type == 'proxy':
