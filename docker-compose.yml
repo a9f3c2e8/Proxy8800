@@ -16,6 +16,7 @@ services:
       - ./utils:/app/utils
       - ./main.py:/app/main.py
       - ./proxy_mtproto.py:/app/proxy_mtproto.py
+      - ./start_all.sh:/app/start_all.sh
       - ./data:/app/data
       - ./.env:/app/.env:ro
     environment:
@@ -28,7 +29,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: sh -c "python proxy_mtproto.py & python -u main.py"
 
 networks:
   app-network:

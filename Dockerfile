@@ -16,11 +16,15 @@ COPY services/ ./services/
 COPY utils/ ./utils/
 COPY main.py .
 
-# Копируем MTProto прокси
+# Копируем MTProto прокси и стартовый скрипт
 COPY proxy_mtproto.py .
+COPY start_all.sh .
+
+# Делаем скрипт исполняемым
+RUN chmod +x start_all.sh
 
 # Создаем директорию для данных
 RUN mkdir -p /app/data
 
-# Запуск бота
-CMD ["python", "-u", "main.py"]
+# Запуск через скрипт
+CMD ["./start_all.sh"]
