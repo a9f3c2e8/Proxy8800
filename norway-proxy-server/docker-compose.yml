@@ -8,10 +8,24 @@ services:
     restart: always
     ports:
       - "8800:8800"
+      - "8801:8801"
     environment:
-      - REQUIRE_AUTH=false
+      - REQUIRE_AUTH=true
+      - MAX_CONNECTIONS=1000
+      - DB_PATH=/data/proxy.db
+      - API_KEY=${API_KEY:-your-secret-api-key-change-me}
+    volumes:
+      - proxy-data:/data
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    command: sh -c "python api_server.py & python proxy_server.py"
+
+volumes:
+  proxy-data:

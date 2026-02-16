@@ -2,8 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Установка зависимостей
+RUN pip install --no-cache-dir aiohttp
+
+# Копирование файлов
 COPY proxy_server.py .
+COPY api_server.py .
 
-EXPOSE 8800
+# Создание директории для данных
+RUN mkdir -p /data
 
-CMD ["python", "proxy_server.py"]
+EXPOSE 8800 8801
+
+# Запуск обоих сервисов
+CMD sh -c "python api_server.py & python proxy_server.py"
