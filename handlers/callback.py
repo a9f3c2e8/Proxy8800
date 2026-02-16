@@ -272,14 +272,11 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     import random
     import string
     import hashlib
+    from core.config import PROXY_DOMAIN, PROXY_PORT
     
     quantity = order_data['quantity']
     country_code = order_data['country']
     service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
-    
-    # IP и домен прокси-сервера
-    PROXY_SERVER_IP = "104.233.9.112"
-    PROXY_DOMAIN = "8800.life"
     
     # Сохраняем данные первого прокси для кнопки
     first_proxy_data = None
@@ -295,16 +292,16 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
             secret = 'dd' + secrets.token_hex(16)
             username = secret  # Сохраняем секрет как username
             password = ''  # Пароль не нужен для MTProto
-            unique_port = 8800  # MTProto на 8800 порту
+            unique_port = PROXY_PORT  # MTProto на 8800 порту
         else:
             # Для VPN генерируем логин и пароль (8 символов)
             username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
             password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-            unique_port = 8800
+            unique_port = PROXY_PORT
         
         proxy_data = {
             'id': proxy_id,
-            'ip': PROXY_SERVER_IP,
+            'ip': PROXY_DOMAIN,
             'port': unique_port,
             'username': username,
             'password': password,

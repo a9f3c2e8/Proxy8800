@@ -4,7 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 from telegram.ext import ContextTypes
 from core.database import db
 from keyboards import back_to_main_keyboard
-from core.config import COUNTRIES, PERIODS, MENU_IMAGES
+from core.config import COUNTRIES, PERIODS, MENU_IMAGES, PROXY_DOMAIN, PROXY_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +67,10 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Создаем ссылку для подключения к Telegram (MTProto)
             if service_type == 'proxy':
                 # MTProto ссылка
-                tg_link = f"https://t.me/proxy?server=8800.life&port={port}&secret={username}"
+                tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={username}"
             else:
                 # SOCKS5 ссылка для VPN
-                tg_link = f"https://t.me/socks?server=8800.life&port={port}"
+                tg_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={PROXY_PORT}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
@@ -170,7 +170,7 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         if service_type == 'proxy':
             # MTProto ссылка
-            tg_link = f"https://t.me/proxy?server=8800.life&port={port}&secret={username}"
+            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={username}"
         else:
             # SOCKS5 ссылка
             tg_link = f"https://t.me/socks?server={ip}&port={port}"

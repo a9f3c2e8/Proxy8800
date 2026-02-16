@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   bot:
     build:
@@ -42,7 +40,7 @@ services:
       - "8800:8800"
       - "8801:8801"
     environment:
-      - DOMAIN=${PROXY_DOMAIN:-8800.life}
+      - DOMAIN=8800.life
       - MTPROTO_PORT=8800
       - MTPROTO_SECRET=${MTPROTO_SECRET:-dd2ae5891b2b9b9b811b212050843193aa}
       - REQUIRE_AUTH=true
