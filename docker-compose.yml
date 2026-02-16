@@ -60,7 +60,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: sh -c "python api_server.py & python mtproto_server.py & wait"
+    command: sh start.sh
 
 networks:
   app-network:
