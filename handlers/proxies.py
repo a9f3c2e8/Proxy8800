@@ -63,8 +63,13 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             country_name = COUNTRIES.get(country_code, country_code.upper())
             period = proxy.get('period', 'N/A')
             
-            # Создаем короткую ссылку для подключения к Telegram
-            tg_link = f"https://t.me/socks?server={ip}&port={port}"
+            # Создаем ссылку для подключения к Telegram (MTProto)
+            if service_type == 'proxy':
+                # MTProto ссылка
+                tg_link = f"https://t.me/proxy?server=8800.life&port={port}&secret={username}"
+            else:
+                # SOCKS5 ссылка для VPN
+                tg_link = f"https://t.me/socks?server={ip}&port={port}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
@@ -159,9 +164,15 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         port = proxy.get('port', 'N/A')
         username = proxy.get('username', 'N/A')
         password = proxy.get('password', 'N/A')
+        service_type = proxy.get('service_type', 'proxy')
         period = proxy.get('period', 'N/A')
         
-        tg_link = f"https://t.me/socks?server={ip}&port={port}"
+        if service_type == 'proxy':
+            # MTProto ссылка
+            tg_link = f"https://t.me/proxy?server=8800.life&port={port}&secret={username}"
+        else:
+            # SOCKS5 ссылка
+            tg_link = f"https://t.me/socks?server={ip}&port={port}"
         
         text = (
             f"📱 <b>Прокси для Telegram</b>\n\n"

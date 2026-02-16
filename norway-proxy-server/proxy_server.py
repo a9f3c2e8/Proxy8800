@@ -7,10 +7,10 @@ import os
 import sqlite3
 from datetime import datetime
 
-# Настройка логирования - только критичные ошибки
+# Настройка логирования
 logging.basicConfig(
-    level=logging.ERROR,
-    format='%(levelname)s: %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ class SOCKS5Server:
             conn.close()
             
             if not row:
+                logger.warning(f"Неверные учетные данные: {username}")
                 return None
             
             user = dict(row)
@@ -56,15 +57,19 @@ class SOCKS5Server:
             # Проверяем срок действия
             expires_at = datetime.fromisoformat(user['expires_at'])
             if datetime.now() > expires_at:
+                logger.warning(f"Прокси для {username} истек (до {expires_at})")
                 return None
             
             # Проверяем лимит трафика
             if user['traffic_limit'] > 0 and user['traffic_used'] >= user['traffic_limit']:
+                logger.warning(f"Превышен лимит трафика для {username}")
                 return None
             
+            logger.info(f"✓ Аутентификация: {username} (TG: {user['telegram_user_id']})")
             return user
             
-        except Exception:
+        except Exception as e:
+            logger.error(f"Ошибка проверки учетных данных: {e}")
             return None
     
     def update_last_used(self, username: str):
@@ -80,8 +85,9 @@ class SOCKS5Server:
             
             conn.commit()
             conn.close()
-        except Exception:
-            pass
+            logger.debug(f"Обновлено last_used для {username}")
+        except Exception as e:
+            logger.error(f"Ошибка обновления last_used: {e}")
     
     def log_connection(self, username: str, client_ip: str, destination: str):
         """Записать подключение"""
@@ -96,8 +102,9 @@ class SOCKS5Server:
             
             conn.commit()
             conn.close()
-        except Exception:
-            pass
+            logger.debug(f"Логировано подключение {username} -> {destination}")
+        except Exception as e:
+            logger.error(f"Ошибка логирования подключения: {e}")
     
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Обработка клиента"""
@@ -106,14 +113,17 @@ class SOCKS5Server:
             try:
                 addr = writer.get_extra_info('peername')
                 self.active_connections += 1
+                logger.info(f"[{self.active_connections}] Новое подключение от {addr}")
                 
                 # 1. Приветствие
                 data = await asyncio.wait_for(reader.read(2), timeout=5)
                 if len(data) < 2:
+                    logger.warning("Недостаточно данных для приветствия")
                     return
                 
                 version, nmethods = struct.unpack('!BB', data)
                 if version != 5:
+                    logger.warning(f"Неподдерживаемая версия SOCKS: {version}")
                     return
                 
                 methods = await asyncio.wait_for(reader.read(nmethods), timeout=5)
@@ -126,6 +136,7 @@ class SOCKS5Server:
                     # 2. Аутентификация
                     auth_data = await asyncio.wait_for(reader.read(2), timeout=5)
                     if len(auth_data) < 2:
+                        logger.warning("Недостаточно данных для аутентификации")
                         return
                     
                     auth_version, ulen = struct.unpack('!BB', auth_data)
@@ -142,18 +153,22 @@ class SOCKS5Server:
                     else:
                         writer.write(struct.pack('!BB', 1, 1))
                         await writer.drain()
+                        logger.warning(f"✗ Отклонено: {username}")
                         return
                 elif not self.require_auth and 0 in methods:
                     writer.write(struct.pack('!BB', 5, 0))
                     await writer.drain()
+                    logger.info("✓ Подключение без аутентификации")
                 else:
                     writer.write(struct.pack('!BB', 5, 255))
                     await writer.drain()
+                    logger.warning("Клиент не поддерживает требуемые методы аутентификации")
                     return
                 
                 # 3. Запрос подключения
                 request = await asyncio.wait_for(reader.read(4), timeout=5)
                 if len(request) < 4:
+                    logger.warning("Недостаточно данных для запроса")
                     return
                 
                 version, cmd, _, atyp = struct.unpack('!BBBB', request)
@@ -161,6 +176,7 @@ class SOCKS5Server:
                 if cmd != 1:
                     writer.write(struct.pack('!BBBBIH', 5, 7, 0, 1, 0, 0))
                     await writer.drain()
+                    logger.warning(f"Неподдерживаемая команда: {cmd}")
                     return
                 
                 # Читаем адрес
@@ -176,11 +192,13 @@ class SOCKS5Server:
                 else:
                     writer.write(struct.pack('!BBBBIH', 5, 8, 0, 1, 0, 0))
                     await writer.drain()
+                    logger.warning(f"Неподдерживаемый тип адреса: {atyp}")
                     return
                 
                 dst_port = struct.unpack('!H', await asyncio.wait_for(reader.read(2), timeout=5))[0]
                 
                 destination = f"{dst_addr}:{dst_port}"
+                logger.info(f"→ {destination}")
                 
                 # Логируем подключение если есть username
                 if hasattr(writer, '_username'):
@@ -200,6 +218,8 @@ class SOCKS5Server:
                     writer.write(struct.pack('!BBBB', 5, 0, 0, 1) + bind_ip + struct.pack('!H', bind_port))
                     await writer.drain()
                     
+                    logger.info(f"✓ Подключено к {destination}")
+                    
                     # 5. Проксируем данные
                     await asyncio.gather(
                         self.pipe(reader, remote_writer),
@@ -210,14 +230,16 @@ class SOCKS5Server:
                 except asyncio.TimeoutError:
                     writer.write(struct.pack('!BBBBIH', 5, 4, 0, 1, 0, 0))
                     await writer.drain()
-                except Exception:
+                    logger.error(f"✗ Таймаут подключения к {destination}")
+                except Exception as e:
                     writer.write(struct.pack('!BBBBIH', 5, 5, 0, 1, 0, 0))
                     await writer.drain()
+                    logger.error(f"✗ Ошибка подключения к {destination}: {e}")
             
             except asyncio.TimeoutError:
-                pass
+                logger.warning("Таймаут при обработке клиента")
             except Exception as e:
-                logger.error(f"Error: {e}")
+                logger.error(f"✗ Ошибка обработки клиента: {e}")
             finally:
                 self.active_connections -= 1
                 try:
@@ -225,6 +247,7 @@ class SOCKS5Server:
                     await writer.wait_closed()
                 except Exception:
                     pass
+                logger.info(f"[{self.active_connections}] Соединение закрыто")
     
     async def pipe(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Проксирование данных"""
@@ -254,13 +277,16 @@ class SOCKS5Server:
             self.port
         )
         
-        auth_status = "ON" if self.require_auth else "OFF"
-        print(f"")
-        print(f"{'='*60}")
-        print(f"  SOCKS5 Proxy Server - 8800.life")
-        print(f"  Port: {self.port} | Auth: {auth_status} | Max: {self.max_connections}")
-        print(f"{'='*60}")
-        print(f"")
+        auth_status = "Обязательна" if self.require_auth else "Опциональна"
+        logger.info(f"")
+        logger.info(f"{'='*60}")
+        logger.info(f"  SOCKS5 Прокси-сервер 8800.life")
+        logger.info(f"  Адрес: {self.host}:{self.port}")
+        logger.info(f"  Аутентификация: {auth_status}")
+        logger.info(f"  Макс. соединений: {self.max_connections}")
+        logger.info(f"  База данных: {self.db_path}")
+        logger.info(f"{'='*60}")
+        logger.info(f"")
         
         async with server:
             await server.serve_forever()
@@ -286,4 +312,4 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nServer stopped")
+        logger.info("\nСервер остановлен")

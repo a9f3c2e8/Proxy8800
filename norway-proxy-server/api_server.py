@@ -8,10 +8,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import os
 
-# Только критичные ошибки
 logging.basicConfig(
-    level=logging.ERROR,
-    format='%(levelname)s: %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -47,6 +46,19 @@ class ProxyDatabase:
             )
         ''')
         
+        # Таблица MTProto секретов
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS mtproto_secrets (
+                secret TEXT PRIMARY KEY,
+                telegram_user_id INTEGER NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                traffic_limit INTEGER DEFAULT 0,
+                traffic_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used TIMESTAMP
+            )
+        ''')
+        
         # Таблица статистики подключений
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS connection_stats (
@@ -65,11 +77,13 @@ class ProxyDatabase:
         # Индексы
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_proxy_users_telegram ON proxy_users(telegram_user_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_proxy_users_expires ON proxy_users(expires_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_mtproto_telegram ON mtproto_secrets(telegram_user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_mtproto_expires ON mtproto_secrets(expires_at)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_connection_stats_username ON connection_stats(username)')
         
         conn.commit()
         conn.close()
-        print(f"Proxy DB initialized")
+        logger.info("База данных прокси инициализирована")
     
     def create_proxy_user(self, username: str, password: str, telegram_user_id: int, 
                          days: int = 30, traffic_limit: int = 0) -> bool:
@@ -85,11 +99,52 @@ class ProxyDatabase:
                 VALUES (?, ?, ?, ?, ?)
             ''', (username, password, telegram_user_id, expires_at, traffic_limit))
             conn.commit()
+            logger.info(f"Создан прокси-пользователь {username} для TG {telegram_user_id}")
             return True
         except sqlite3.IntegrityError:
+            logger.warning(f"Пользователь {username} уже существует")
             return False
         finally:
             conn.close()
+    
+    def create_mtproto_secret(self, secret: str, telegram_user_id: int, 
+                             days: int = 30, traffic_limit: int = 0) -> bool:
+        """Создать MTProto секрет"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        expires_at = datetime.now() + timedelta(days=days)
+        
+        try:
+            cursor.execute('''
+                INSERT INTO mtproto_secrets (secret, telegram_user_id, expires_at, traffic_limit)
+                VALUES (?, ?, ?, ?)
+            ''', (secret, telegram_user_id, expires_at, traffic_limit))
+            conn.commit()
+            logger.info(f"Создан MTProto секрет для TG {telegram_user_id}")
+            return True
+        except sqlite3.IntegrityError:
+            logger.warning(f"Секрет уже существует")
+            return False
+        finally:
+            conn.close()
+    
+    def get_mtproto_by_telegram_id(self, telegram_user_id: int) -> Optional[Dict]:
+        """Получить MTProto секрет по Telegram ID"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM mtproto_secrets 
+            WHERE telegram_user_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''', (telegram_user_id,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        return dict(row) if row else None
     
     def verify_credentials(self, username: str, password: str) -> Optional[Dict]:
         """Проверить учетные данные и вернуть информацию о пользователе"""
@@ -112,10 +167,12 @@ class ProxyDatabase:
         # Проверяем срок действия
         expires_at = datetime.fromisoformat(user['expires_at'])
         if datetime.now() > expires_at:
+            logger.warning(f"Прокси для {username} истек")
             return None
         
         # Проверяем лимит трафика
         if user['traffic_limit'] > 0 and user['traffic_used'] >= user['traffic_limit']:
+            logger.warning(f"Превышен лимит трафика для {username}")
             return None
         
         return user
@@ -275,7 +332,9 @@ class ProxyAPIServer:
         self.app.router.add_get('/', self.index)
         self.app.router.add_get('/api/health', self.health)
         self.app.router.add_post('/api/user/create', self.create_user)
+        self.app.router.add_post('/api/mtproto/create', self.create_mtproto)
         self.app.router.add_get('/api/user/{telegram_id}', self.get_user)
+        self.app.router.add_get('/api/mtproto/{telegram_id}', self.get_mtproto)
         self.app.router.add_get('/api/user/{telegram_id}/stats', self.get_user_stats)
         self.app.router.add_post('/api/user/{username}/extend', self.extend_user)
         self.app.router.add_delete('/api/user/{username}', self.delete_user)
@@ -401,8 +460,53 @@ class ProxyAPIServer:
             else:
                 return web.json_response({'error': 'User already exists'}, status=400)
         
-        except Exception:
-            return web.json_response({'error': 'Internal error'}, status=500)
+        except Exception as e:
+            logger.error(f"Error creating user: {e}")
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def create_mtproto(self, request: web.Request):
+        """Создать MTProto секрет"""
+        if not self._check_auth(request):
+            return web.json_response({'error': 'Unauthorized'}, status=401)
+        
+        try:
+            data = await request.json()
+            telegram_user_id = data['telegram_user_id']
+            secret = data['secret']
+            days = data.get('days', 30)
+            traffic_limit = data.get('traffic_limit', 0)
+            domain = data.get('domain', '8800.life')
+            port = data.get('port', 443)
+            
+            success = self.db.create_mtproto_secret(secret, telegram_user_id, days, traffic_limit)
+            
+            if success:
+                proxy_link = f"https://t.me/proxy?server={domain}&port={port}&secret={secret}"
+                return web.json_response({
+                    'success': True,
+                    'secret': secret,
+                    'proxy_link': proxy_link,
+                    'expires_in_days': days
+                })
+            else:
+                return web.json_response({'error': 'Secret already exists'}, status=400)
+        
+        except Exception as e:
+            logger.error(f"Error creating MTProto: {e}")
+            return web.json_response({'error': str(e)}, status=500)
+    
+    async def get_mtproto(self, request: web.Request):
+        """Получить MTProto секрет"""
+        if not self._check_auth(request):
+            return web.json_response({'error': 'Unauthorized'}, status=401)
+        
+        telegram_id = int(request.match_info['telegram_id'])
+        mtproto = self.db.get_mtproto_by_telegram_id(telegram_id)
+        
+        if mtproto:
+            return web.json_response(mtproto)
+        else:
+            return web.json_response({'error': 'MTProto not found'}, status=404)
     
     async def get_user(self, request: web.Request):
         """Получить пользователя"""
@@ -507,12 +611,13 @@ class ProxyAPIServer:
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
         
-        print(f"")
-        print(f"{'='*60}")
-        print(f"  8800.life Proxy Management API")
-        print(f"  Port: {self.port}")
-        print(f"{'='*60}")
-        print(f"")
+        logger.info(f"")
+        logger.info(f"{'='*60}")
+        logger.info(f"  8800.life Proxy Management API")
+        logger.info(f"  Адрес: http://{self.host}:{self.port}")
+        logger.info(f"  API Key: {self.api_key[:10]}...")
+        logger.info(f"{'='*60}")
+        logger.info(f"")
 
 
 async def main():
@@ -532,4 +637,4 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nAPI stopped")
+        logger.info("\nAPI сервер остановлен")

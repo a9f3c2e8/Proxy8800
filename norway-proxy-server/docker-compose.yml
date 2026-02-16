@@ -7,9 +7,13 @@ services:
     container_name: 8800-proxy
     restart: always
     ports:
+      - "443:443"
       - "8800:8800"
       - "8801:8801"
     environment:
+      - DOMAIN=8800.life
+      - MTPROTO_PORT=443
+      - MTPROTO_SECRET=${MTPROTO_SECRET:-dd2ae5891b2b9b9b811b212050843193aa}
       - REQUIRE_AUTH=true
       - MAX_CONNECTIONS=1000
       - DB_PATH=/data/proxy.db
@@ -25,7 +29,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: sh -c "python api_server.py & python proxy_server.py"
+    command: sh -c "python api_server.py & python mtproto_server.py & python proxy_server.py"
 
 volumes:
   proxy-data:

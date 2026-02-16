@@ -1,5 +1,6 @@
 """Главный обработчик callback запросов"""
 import logging
+import secrets
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from core.database import db
@@ -276,8 +277,9 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     country_code = order_data['country']
     service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
     
-    # IP прокси-сервера
+    # IP и домен прокси-сервера
     PROXY_SERVER_IP = "104.233.9.112"
+    PROXY_DOMAIN = "8800.life"
     
     # Сохраняем данные первого прокси для кнопки
     first_proxy_data = None
@@ -288,12 +290,17 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         data = f"{user_id}:{i}:{random.randint(1000, 9999)}"
         proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
         
-        # Генерируем логин и пароль (8 символов)
-        username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-        password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-        
-        # Порт всегда 8800
-        unique_port = 8800
+        if service_type == 'proxy':
+            # Для MTProto генерируем секрет (dd + 32 hex символа)
+            secret = 'dd' + secrets.token_hex(16)
+            username = secret  # Сохраняем секрет как username
+            password = ''  # Пароль не нужен для MTProto
+            unique_port = 443  # MTProto на 443 порту
+        else:
+            # Для VPN генерируем логин и пароль (8 символов)
+            username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+            password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+            unique_port = 8800
         
         proxy_data = {
             'id': proxy_id,
@@ -329,8 +336,8 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
         else:
-            # Для прокси показываем кнопку подключения к Telegram
-            tg_link = f"https://t.me/socks?server={first_proxy_data['ip']}&port={first_proxy_data['port']}&user={first_proxy_data['username']}&pass={first_proxy_data['password']}"
+            # Для прокси показываем кнопку подключения к Telegram (MTProto)
+            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={first_proxy_data['username']}"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📱 Подключиться к Telegram", url=tg_link)],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
