@@ -15,6 +15,12 @@ ADMIN_ID = 1649567897
 WEBSHARE_API_KEY = "5jxl1vzwdqa3rbodxlf67746h0gfd80d4pldbo9c"
 WEBSHARE_API_URL = "https://proxy.webshare.io/api/v2"
 
+# Proxy Server API
+PROXY_API_URL = os.getenv("PROXY_API_URL", "http://localhost:8801")
+PROXY_API_KEY = os.getenv("PROXY_API_KEY", "your-secret-api-key-change-me")
+PROXY_DOMAIN = os.getenv("PROXY_DOMAIN", "8800.life")
+PROXY_PORT = int(os.getenv("PROXY_PORT", "8800"))
+
 # Страны
 COUNTRIES = {
     'ru': '🇷🇺 Россия', 'de': '🇩🇪 Германия', 'us': '🇺🇸 США', 'nl': '🇳🇱 Нидерланды',

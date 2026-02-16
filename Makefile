@@ -1,4 +1,4 @@
-.PHONY: build up down restart logs clean
+.PHONY: build up down restart logs clean status
 
 # Быстрая сборка (с кешем)
 build:
@@ -11,6 +11,10 @@ rebuild:
 # Запуск
 up:
 	docker-compose up -d
+	@echo ""
+	@echo "✅ Сервисы запущены!"
+	@echo "Проверить статус: make status"
+	@echo "Посмотреть логи: make logs"
 
 # Остановка
 down:
@@ -20,9 +24,21 @@ down:
 restart:
 	docker-compose restart
 
-# Логи
+# Логи всех сервисов
 logs:
-	docker-compose logs -f
+	docker-compose logs -f --tail=100
+
+# Логи бота
+logs-bot:
+	docker-compose logs -f --tail=100 bot
+
+# Логи прокси
+logs-proxy:
+	docker-compose logs -f --tail=100 proxy
+
+# Статус
+status:
+	docker-compose ps
 
 # Очистка
 clean:

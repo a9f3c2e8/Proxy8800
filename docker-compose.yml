@@ -9,7 +9,6 @@ services:
     container_name: 8800-telegram-bot
     restart: always
     volumes:
-      # Монтируем код напрямую (изменения применяются без пересборки)
       - ./core:/app/core
       - ./handlers:/app/handlers
       - ./keyboards:/app/keyboards
@@ -20,8 +19,54 @@ services:
       - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - PROXY_API_URL=http://proxy:8801
+      - PROXY_API_KEY=${API_KEY:-your-secret-api-key-change-me}
+    depends_on:
+      - proxy
+    networks:
+      - app-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+  proxy:
+    build:
+      context: ./norway-proxy-server
+      dockerfile: Dockerfile
+    image: 8800-proxy:latest
+    container_name: 8800-proxy
+    restart: always
+    ports:
+      - "8800:8800"
+      - "8801:8801"
+    environment:
+      - DOMAIN=${PROXY_DOMAIN:-8800.life}
+      - MTPROTO_PORT=8800
+      - MTPROTO_SECRET=${MTPROTO_SECRET:-dd2ae5891b2b9b9b811b212050843193aa}
+      - REQUIRE_AUTH=true
+      - MAX_CONNECTIONS=1000
+      - DB_PATH=/data/proxy.db
+      - API_KEY=${API_KEY:-your-secret-api-key-change-me}
+    volumes:
+      - ./data:/data
+    networks:
+      - app-network
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: sh -c "python api_server.py & python mtproto_server.py"
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  proxy-data:

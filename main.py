@@ -10,7 +10,8 @@ from telegram.ext import (
     ContextTypes
 )
 
-from core.config import BOT_TOKEN
+from core.config import BOT_TOKEN, PROXY_API_URL, PROXY_API_KEY
+from services.proxy_api import init_proxy_api
 from handlers import (
     start_handler,
     balance_handler,
@@ -84,7 +85,11 @@ def setup_handlers(application: Application) -> None:
 
 def main() -> None:
     """Запуск бота"""
-    logger.info("Запуск минетчицы...")
+    logger.info("Запуск бота 8800.life...")
+    
+    # Инициализация Proxy API клиента
+    init_proxy_api(PROXY_API_URL, PROXY_API_KEY)
+    logger.info(f"Proxy API инициализирован: {PROXY_API_URL}")
     
     # Создание приложения
     application = Application.builder().token(BOT_TOKEN).build()
