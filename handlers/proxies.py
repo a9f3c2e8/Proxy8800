@@ -69,7 +69,7 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 tg_link = f"https://t.me/proxy?server=8800.life&port={port}&secret={username}"
             else:
                 # SOCKS5 ссылка для VPN
-                tg_link = f"https://t.me/socks?server={ip}&port={port}"
+                tg_link = f"https://t.me/socks?server=8800.life&port={port}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
