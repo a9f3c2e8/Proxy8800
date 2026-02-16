@@ -26,5 +26,5 @@ RUN chmod +x start_all.sh
 # Создаем директорию для данных
 RUN mkdir -p /app/data
 
-# Запуск через скрипт
-CMD ["./start_all.sh"]
+# Запуск через sh
+CMD ["sh", "start_all.sh"]
