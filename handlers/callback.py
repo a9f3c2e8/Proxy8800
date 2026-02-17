@@ -1,6 +1,7 @@
 """Главный обработчик callback запросов"""
 import logging
 import secrets
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from core.database import db
@@ -288,8 +289,9 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
         
         if service_type == 'proxy':
-            # Для MTProto генерируем секрет (dd + 32 hex символа)
-            secret = 'dd' + secrets.token_hex(16)
+            # Для MTProto используем ОБЩИЙ секрет для всех (dd + 32 hex = 34 символа)
+            import os
+            secret = os.getenv('MTPROTO_SECRET', 'dd2ae5891b2b9b9b811b212050843193aa')
             username = secret  # Сохраняем секрет как username
             password = ''  # Пароль не нужен для MTProto
             unique_port = PROXY_PORT  # MTProto на 8800 порту

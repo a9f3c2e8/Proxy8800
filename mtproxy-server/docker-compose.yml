@@ -1,0 +1,19 @@
+services:
+  mtproxy:
+    image: telegrammessenger/proxy:latest
+    container_name: 8800-mtproxy
+    restart: always
+    ports:
+      - "8800:8800"
+      - "443:443"
+    entrypoint: >
+      sh -c "
+      curl -s https://core.telegram.org/getProxySecret -o /opt/mtproto-proxy/proxy-secret &&
+      curl -s https://core.telegram.org/getProxyConfig -o /opt/mtproto-proxy/proxy-multi.conf &&
+      /opt/mtproto-proxy/mtproto-proxy -u nobody -p 8800 -H 443 -S dd2ae5891b2b9b9b811b212050843193aa --aes-pwd /opt/mtproto-proxy/proxy-secret /opt/mtproto-proxy/proxy-multi.conf -M 1
+      "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

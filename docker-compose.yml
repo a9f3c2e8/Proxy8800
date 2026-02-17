@@ -17,35 +17,8 @@ services:
       - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
-    networks:
-      - proxy-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-  mtproxy:
-    image: telegrammessenger/proxy:latest
-    container_name: 8800-proxy
-    restart: always
-    ports:
-      - "8800:8800"
-      - "443:443"
-    networks:
-      - proxy-network
-    entrypoint: >
-      sh -c "
-      curl -s https://core.telegram.org/getProxySecret -o /opt/mtproto-proxy/proxy-secret &&
-      curl -s https://core.telegram.org/getProxyConfig -o /opt/mtproto-proxy/proxy-multi.conf &&
-      /opt/mtproto-proxy/mtproto-proxy -u nobody -p 8800 -H 443 -S dd7f8a9b2c3d4e5f6789abcdef012345 --aes-pwd /opt/mtproto-proxy/proxy-secret /opt/mtproto-proxy/proxy-multi.conf -M 1
-      "
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-networks:
-  proxy-network:
-    driver: bridge
