@@ -5,11 +5,11 @@ services:
     restart: always
     network_mode: host
     environment:
-      - SECRET=dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a
+      - SECRET=dd2ae5891b2b9b9b811b212050843193aa
     command: >
       sh -c "curl -s https://core.telegram.org/getProxySecret -o /opt/mtproto-proxy/proxy-secret &&
              curl -s https://core.telegram.org/getProxyConfig -o /opt/mtproto-proxy/proxy-multi.conf &&
-             /opt/mtproto-proxy/mtproto-proxy -u nobody -p 8800 -H 8443 -S dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a --aes-pwd /opt/mtproto-proxy/proxy-secret /opt/mtproto-proxy/proxy-multi.conf -M 1 -v"
+             /opt/mtproto-proxy/mtproto-proxy -u nobody -p 8800 -H 8443 -S dd2ae5891b2b9b9b811b212050843193aa --aes-pwd /opt/mtproto-proxy/proxy-secret /opt/mtproto-proxy/proxy-multi.conf -M 1 -v"
     logging:
       driver: "json-file"
       options:
