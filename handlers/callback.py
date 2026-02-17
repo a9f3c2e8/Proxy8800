@@ -289,9 +289,9 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
         
         if service_type == 'proxy':
-            # Для MTProto используем ОБЩИЙ секрет для всех (dd + 32 hex для FakeTLS)
+            # Для MTProto используем ОБЩИЙ секрет для всех (32 hex БЕЗ dd)
             import os
-            secret = os.getenv('MTPROTO_SECRET', 'dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a')
+            secret = os.getenv('MTPROTO_SECRET', '7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a')
             username = secret  # Сохраняем секрет как username
             password = ''  # Пароль не нужен для MTProto
             unique_port = PROXY_PORT  # MTProto на 8800 порту

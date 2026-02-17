@@ -66,8 +66,8 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             service_type = proxy.get('service_type', 'proxy')
             
             # Создаем ссылку для подключения к Telegram (MTProto)
-            # MTProto ссылка (dd + 32 hex для FakeTLS)
-            secret = os.getenv('MTPROTO_SECRET', 'dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a')
+            # MTProto ссылка (32 hex БЕЗ dd)
+            secret = os.getenv('MTPROTO_SECRET', '7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a')
             tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
             
             text = (
@@ -166,8 +166,8 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         service_type = proxy.get('service_type', 'proxy')
         period = proxy.get('period', 'N/A')
         
-        # MTProto ссылка (dd + 32 hex для FakeTLS)
-        secret = os.getenv('MTPROTO_SECRET', 'dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a')
+        # MTProto ссылка (32 hex БЕЗ dd)
+        secret = os.getenv('MTPROTO_SECRET', '7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a')
         tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
         
         text = (

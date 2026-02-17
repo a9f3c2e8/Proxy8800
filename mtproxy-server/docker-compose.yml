@@ -3,13 +3,10 @@ services:
     image: telegrammessenger/proxy:latest
     container_name: 8800-mtproxy
     restart: always
-    network_mode: host
+    ports:
+      - "8800:443"
     environment:
-      - SECRET=dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a
-    command: >
-      sh -c "curl -s https://core.telegram.org/getProxySecret -o /opt/mtproto-proxy/proxy-secret &&
-             curl -s https://core.telegram.org/getProxyConfig -o /opt/mtproto-proxy/proxy-multi.conf &&
-             /opt/mtproto-proxy/mtproto-proxy -u nobody -p 8800 -H 8443 -S dd7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a --aes-pwd /opt/mtproto-proxy/proxy-secret /opt/mtproto-proxy/proxy-multi.conf -M 1 -v"
+      - SECRET=7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a
     logging:
       driver: "json-file"
       options:
