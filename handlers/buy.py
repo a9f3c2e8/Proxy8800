@@ -23,7 +23,7 @@ async def buy_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     text = (
         f"🛒 <b>Выберите тип сервиса</b>\n\n"
         f"<b>📱 Прокси</b>\n"
-        f"<blockquote><i>Обход блокировок Telegram</i></blockquote>\n\n"
+        f"<blockquote><i>Для Telegram</i></blockquote>\n\n"
         f"<b>🔴 VPN</b>\n"
         f"<blockquote><i>Ведутся работы</i></blockquote>"
     )

@@ -28,7 +28,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         f"<b>🔧 Как использовать прокси:</b>\n\n"
         f"<b>Telegram:</b>\n"
         f"Нажмите кнопку 'Подключить к Telegram' в разделе 'Мои прокси'\n\n"
-        f"<b>YouTube/Браузер:</b>\n"
+        f"<b>Браузер:</b>\n"
         f"1. Скопируйте IP, порт, логин и пароль\n"
         f"2. В настройках браузера найдите 'Прокси-сервер'\n"
         f"3. Выберите SOCKS5 и введите данные\n\n"

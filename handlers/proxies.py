@@ -215,7 +215,7 @@ async def view_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         text = (
             "🌐 <b>VPN для всех сервисов</b>\n\n"
             "У вас пока нет активного VPN.\n\n"
-            "<blockquote><i>Приобретите VPN для YouTube и других сервисов</i></blockquote>"
+            "<blockquote><i>Приобретите VPN для всех сервисов</i></blockquote>"
         )
         
         keyboard = [
