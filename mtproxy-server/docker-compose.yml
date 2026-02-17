@@ -1,15 +1,12 @@
 services:
   mtproxy:
-    image: alexbers/mtprotoproxy:latest
+    image: telegrammessenger/proxy:latest
     container_name: 8800-mtproxy
     restart: always
     ports:
-      - "8800:8888"
+      - "8800:443"
     environment:
-      - SECRET=7a3f9e2c8b1d4f6e5a9c3b7f2e8d1a99
-      - PORT=8888
-      - STATS_PORT=8889
-      - TAG=no-tag
+      - SECRET=dd7f3a9e2c8b1d4f6e5a9c3b7f2e8d
     logging:
       driver: "json-file"
       options:
