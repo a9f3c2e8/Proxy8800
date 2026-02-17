@@ -6,7 +6,7 @@ services:
     ports:
       - "8800:443"
     environment:
-      - SECRET=dd7f3a9e2c8b1d4f6e5a9c3b7f2e8d
+      - SECRET=7f3a9e2c8b1d4f6e5a9c3b7f2e8d1a99
     logging:
       driver: "json-file"
       options:
