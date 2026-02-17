@@ -1,5 +1,6 @@
 """Обработчик для просмотра прокси"""
 import logging
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import ContextTypes
 from core.database import db
@@ -65,12 +66,9 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             service_type = proxy.get('service_type', 'proxy')
             
             # Создаем ссылку для подключения к Telegram (MTProto)
-            if service_type == 'proxy':
-                # MTProto ссылка
-                tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={username}"
-            else:
-                # SOCKS5 ссылка для VPN
-                tg_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={PROXY_PORT}"
+            # MTProto ссылка
+            secret = os.getenv('MTPROTO_SECRET', 'dd7f8a9b2c3d4e5f6789abcdef012345')
+            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
@@ -168,12 +166,9 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         service_type = proxy.get('service_type', 'proxy')
         period = proxy.get('period', 'N/A')
         
-        if service_type == 'proxy':
-            # MTProto ссылка
-            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={username}"
-        else:
-            # SOCKS5 ссылка
-            tg_link = f"https://t.me/socks?server={ip}&port={port}"
+        # MTProto ссылка
+        secret = os.getenv('MTPROTO_SECRET', 'dd7f8a9b2c3d4e5f6789abcdef012345')
+        tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
         
         text = (
             f"📱 <b>Прокси для Telegram</b>\n\n"

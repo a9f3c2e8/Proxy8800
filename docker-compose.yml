@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: 8800-bot:latest
-    container_name: 8800-telegram-bot
+    container_name: 8800-bot
     restart: always
     volumes:
       - ./core:/app/core
@@ -17,8 +17,29 @@ services:
       - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
-      - PROXY_DOMAIN=8800.life
-      - PROXY_PORT=8800
+    networks:
+      - proxy-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mtproxy:
+    image: telegrammessenger/proxy:latest
+    container_name: 8800-proxy
+    restart: always
+    ports:
+      - "8800:8800"
+      - "443:443"
+    networks:
+      - proxy-network
+    entrypoint: >
+      sh -c "
+      curl -s https://core.telegram.org/getProxySecret -o /opt/mtproto-proxy/proxy-secret &&
+      curl -s https://core.telegram.org/getProxyConfig -o /opt/mtproto-proxy/proxy-multi.conf &&
+      /opt/mtproto-proxy/mtproto-proxy -u nobody -p 8800 -H 443 -S dd7f8a9b2c3d4e5f6789abcdef012345 --aes-pwd /opt/mtproto-proxy/proxy-secret /opt/mtproto-proxy/proxy-multi.conf -M 1
+      "
     logging:
       driver: "json-file"
       options:
@@ -26,8 +47,5 @@ services:
         max-file: "3"
 
 networks:
-  app-network:
+  proxy-network:
     driver: bridge
-
-volumes:
-  proxy-data:
