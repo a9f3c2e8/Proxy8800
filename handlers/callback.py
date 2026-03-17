@@ -252,19 +252,24 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     
     # Проверяем баланс и списываем
     if not db.subtract_balance(user_id, amount):
-        balance = db.get_balance(user_id)
-        context.user_data['balance'] = balance
-        await query.message.edit_caption(
-            caption=(
-                "❌ <b>Недостаточно средств!</b>\n\n"
-                f"Стоимость заказа: {amount:.2f} ₽\n"
-                f"Ваш баланс: {balance:.2f} ₽\n\n"
-                "Пополните баланс и попробуйте снова."
-            ),
-            reply_markup=back_to_main_keyboard(),
-            parse_mode='HTML'
-        )
-        return
+        # Если админ - пропускаем проверку баланса
+        from core.config import ADMIN_ID
+        if user_id == ADMIN_ID:
+            pass  # Админ покупает бесплатно
+        else:
+            balance = db.get_balance(user_id)
+            context.user_data['balance'] = balance
+            await query.message.edit_caption(
+                caption=(
+                    "❌ <b>Недостаточно средств!</b>\n\n"
+                    f"Стоимость заказа: {amount:.2f} ₽\n"
+                    f"Ваш баланс: {balance:.2f} ₽\n\n"
+                    "Пополните баланс и попробуйте снова."
+                ),
+                reply_markup=back_to_main_keyboard(),
+                parse_mode='HTML'
+            )
+            return
     
     # Обновляем кэш баланса
     context.user_data['balance'] = db.get_balance(user_id)
