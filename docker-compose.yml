@@ -28,7 +28,7 @@ services:
     container_name: 8800-web
     restart: always
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./web:/usr/share/nginx/html:ro
     logging:
