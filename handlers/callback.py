@@ -340,11 +340,15 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
         else:
-            # Для MTProto показываем ссылку для Telegram
-            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
+            # MTProto — сообщения и медиа
+            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
             tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={secret}"
+            # SOCKS5 — звонки и всё остальное
+            from core.config import SOCKS5_USER, SOCKS5_PASS, SOCKS5_PORT
+            socks_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={SOCKS5_PORT}&user={SOCKS5_USER}&pass={SOCKS5_PASS}"
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📱 Подключиться к Telegram", url=tg_link)],
+                [InlineKeyboardButton("📱 Telegram (сообщения)", url=tg_link)],
+                [InlineKeyboardButton("📞 Telegram (звонки)", url=socks_link)],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
     else:

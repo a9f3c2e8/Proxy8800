@@ -19,7 +19,12 @@ WEBSHARE_API_URL = "https://proxy.webshare.io/api/v2"
 PROXY_API_URL = os.getenv("PROXY_API_URL", "http://localhost:8801")
 PROXY_API_KEY = os.getenv("PROXY_API_KEY", "your-secret-api-key-change-me")
 PROXY_DOMAIN = os.getenv("PROXY_DOMAIN", "8800.life")
-PROXY_PORT = int(os.getenv("PROXY_PORT", "8800"))
+PROXY_PORT = int(os.getenv("PROXY_PORT", "443"))
+
+# SOCKS5
+SOCKS5_USER = os.getenv("SOCKS5_USER", "8800user")
+SOCKS5_PASS = os.getenv("SOCKS5_PASS", "8800pass2026")
+SOCKS5_PORT = int(os.getenv("SOCKS5_PORT", "8800"))
 
 # Страны
 COUNTRIES = {

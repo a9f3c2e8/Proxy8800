@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 from telegram.ext import ContextTypes
 from core.database import db
 from keyboards import back_to_main_keyboard
-from core.config import COUNTRIES, PERIODS, MENU_IMAGES, PROXY_DOMAIN, PROXY_PORT
+from core.config import COUNTRIES, PERIODS, MENU_IMAGES, PROXY_DOMAIN, PROXY_PORT, SOCKS5_USER, SOCKS5_PASS, SOCKS5_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -66,18 +66,21 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             service_type = proxy.get('service_type', 'proxy')
             
             # Создаем ссылку для подключения к Telegram (MTProto)
-            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
+            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
             tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
+            socks_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={SOCKS5_PORT}&user={SOCKS5_USER}&pass={SOCKS5_PASS}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
                 f"Период: {PERIODS.get(period, period)}\n\n"
-                f"<code>{tg_link}</code>"
+                f"💬 Сообщения и медиа:\n<code>{tg_link}</code>\n\n"
+                f"📞 Звонки:\n<code>{socks_link}</code>"
             )
             
             # Создаем кнопки
             keyboard = [
-                [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
+                [InlineKeyboardButton("💬 Сообщения", url=tg_link)],
+                [InlineKeyboardButton("📞 Звонки", url=socks_link)],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ]
             
@@ -162,17 +165,20 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         period = proxy.get('period', 'N/A')
         
         # MTProto ссылка
-        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
+        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
         tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
+        socks_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={SOCKS5_PORT}&user={SOCKS5_USER}&pass={SOCKS5_PASS}"
         
         text = (
             f"📱 <b>Прокси для Telegram</b>\n\n"
             f"Период: {PERIODS.get(period, period)}\n\n"
-            f"<code>{tg_link}</code>"
+            f"💬 Сообщения и медиа:\n<code>{tg_link}</code>\n\n"
+            f"📞 Звонки:\n<code>{socks_link}</code>"
         )
         
         keyboard = [
-            [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
+            [InlineKeyboardButton("💬 Сообщения", url=tg_link)],
+            [InlineKeyboardButton("📞 Звонки", url=socks_link)],
             [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
         ]
         
