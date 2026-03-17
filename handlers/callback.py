@@ -296,7 +296,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         if service_type == 'proxy':
             # Для MTProto используем общий секрет
             import os
-            secret = os.getenv('MTPROTO_SECRET', 'dd665192ec740b9064430789980cd72dbe')
+            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
             username = secret
             password = ''
             unique_port = PROXY_PORT
@@ -341,7 +341,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
             ])
         else:
             # Для MTProto показываем ссылку для Telegram
-            secret = os.getenv('MTPROTO_SECRET', 'dd665192ec740b9064430789980cd72dbe')
+            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
             tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={secret}"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📱 Подключиться к Telegram", url=tg_link)],

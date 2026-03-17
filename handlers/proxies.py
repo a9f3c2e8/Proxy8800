@@ -66,15 +66,11 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             service_type = proxy.get('service_type', 'proxy')
             
             # Создаем ссылку для подключения к Telegram (MTProto)
-            secret = os.getenv('MTPROTO_SECRET', 'dd665192ec740b9064430789980cd72dbe')
+            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
             tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
-                f"IP: <code>{ip}</code>\n"
-                f"Порт: <code>{port}</code>\n"
-                f"Логин: <code>{username}</code>\n"
-                f"Пароль: <code>{password}</code>\n"
                 f"Период: {PERIODS.get(period, period)}\n\n"
                 f"<code>{tg_link}</code>"
             )
@@ -166,15 +162,11 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         period = proxy.get('period', 'N/A')
         
         # MTProto ссылка
-        secret = os.getenv('MTPROTO_SECRET', 'dd665192ec740b9064430789980cd72dbe')
+        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
         tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
         
         text = (
             f"📱 <b>Прокси для Telegram</b>\n\n"
-            f"IP: <code>{ip}</code>\n"
-            f"Порт: <code>{port}</code>\n"
-            f"Логин: <code>{username}</code>\n"
-            f"Пароль: <code>{password}</code>\n"
             f"Период: {PERIODS.get(period, period)}\n\n"
             f"<code>{tg_link}</code>"
         )

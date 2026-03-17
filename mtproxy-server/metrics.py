@@ -124,7 +124,7 @@ class Handler(BaseHTTPRequestHandler):
                 'status': 'online',
                 'node': 'NL-AMS-01',
                 'location': 'Амстердам, NL',
-                'protocol': 'SOCKS5',
+                'protocol': 'MTProto TLS',
                 'port': 8800,
                 'timestamp': int(time.time())
             }
