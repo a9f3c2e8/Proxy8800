@@ -1,13 +1,14 @@
 services:
-  socks5:
-    image: serjs/go-socks5-proxy
-    container_name: 8800-socks5
+  mtproxy:
+    image: alexbers/mtprotoproxy
+    container_name: 8800-mtproxy
     restart: always
     ports:
-      - "8800:1080"
+      - "8800:443"
     environment:
-      - PROXY_USER=8800user
-      - PROXY_PASSWORD=8800pass2024
+      - TLS_DOMAIN=www.google.com
+    volumes:
+      - ./config.py:/opt/mtprotoproxy/config.py:ro
     logging:
       driver: "json-file"
       options:
