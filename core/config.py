@@ -84,9 +84,10 @@ PROXIES_PER_PAGE = 10
 
 # Картинки для меню
 MENU_IMAGES = {
-    'main': 'https://i.postimg.cc/BQzn3z7r/Frame-1948756164.png',
-    'profile': 'https://i.postimg.cc/65PpKP1s/Frame-1948756165.png',
-    'support': 'https://i.postimg.cc/RVYZmYp2/Frame-1948756167.png',
-    'locations': 'https://i.postimg.cc/pVG2Q7vB/Frame-1948756166.png'
+    'main': 'https://i.postimg.cc/X7dYb2hv/Frame-1948756164.png',
+    'channel': 'https://i.postimg.cc/Fs3H4Pqs/Frame-1948756165.png',
+    'profile': 'https://i.postimg.cc/YqYCHXVp/Frame-1948756166.png',
+    'support': 'https://i.postimg.cc/tCW4jrf4/Frame-1948756167.png',
+    'locations': 'https://i.postimg.cc/65npXHS3/Frame-1948756168.png'
 }
  
