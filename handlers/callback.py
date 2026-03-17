@@ -368,10 +368,10 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     # Создаем кнопки с ссылкой на подключение
     if first_proxy_data:
         if service_type == 'vpn':
-            # Для VPN показываем кнопку подключения к Happ
-            happ_link = f"https://happ.page.link/?link=https://happ.page.link/proxy?server={first_proxy_data['ip']}:{first_proxy_data['port']}&login={first_proxy_data['username']}&password={first_proxy_data['password']}"
+            # Для VPN показываем кнопку с подпиской
+            from core.config import VLESS_SUB_URL
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🌐 Подключиться к Happ", url=happ_link)],
+                [InlineKeyboardButton("🌐 Подключить VPN", callback_data='show_vpn_sub')],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
         else:
