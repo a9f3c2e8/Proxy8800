@@ -10,5 +10,8 @@ MODES = {
     "tls": True
 }
 
-TLS_DOMAIN = "cdn.cloudflare.com"
+TLS_DOMAIN = "www.google.com"
 PREFER_IPV6 = False
+
+# Звонки через прокси
+FAST_USR_DATACENTER_SWITCHING = True
