@@ -26,6 +26,9 @@ SOCKS5_USER = os.getenv("SOCKS5_USER", "8800user")
 SOCKS5_PASS = os.getenv("SOCKS5_PASS", "8800pass2026")
 SOCKS5_PORT = int(os.getenv("SOCKS5_PORT", "8800"))
 
+# Channel
+CHANNEL_ID = os.getenv("CHANNEL_ID", "@connections8800")
+
 # Страны
 COUNTRIES = {
     'ru': '🇷🇺 Россия', 'de': '🇩🇪 Германия', 'us': '🇺🇸 США', 'nl': '🇳🇱 Нидерланды',

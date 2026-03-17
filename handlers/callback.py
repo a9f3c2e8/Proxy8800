@@ -219,20 +219,54 @@ async def handle_period_selection(update: Update, context: ContextTypes.DEFAULT_
             parse_mode='HTML'
         )
     else:
-        # Для Прокси: запрашиваем количество
-        context.user_data['waiting_for'] = 'quantity'
+        # Для Прокси: сразу количество = 1, показываем оплату
+        context.user_data['buy_quantity'] = 1
+        db.set_user_data(user_id, 'buy_quantity', 1)
         
-        sent_message = await query.message.edit_caption(
-            caption=(
-                f"🔢 <b>Введите количество прокси</b>\n\n"
+        period_days = int(period)
+        price_per_month = 50.0
+        price_per_day = price_per_month / 30
+        amount = price_per_day * period_days
+        context.user_data['buy_amount'] = amount
+        db.set_user_data(user_id, 'buy_amount', amount)
+        
+        if 'balance' not in context.user_data:
+            context.user_data['balance'] = db.get_balance(user_id)
+        balance = context.user_data['balance']
+        
+        # Админ или достаточно средств
+        from core.config import ADMIN_ID
+        if user_id == ADMIN_ID or balance >= amount:
+            text = (
+                f"💳 <b>Подтверждение оплаты</b>\n\n"
+                f"Сервис: 📱 Прокси для Telegram\n"
                 f"Период: {PERIODS.get(period)}\n\n"
-                f"<blockquote><i>Отправьте число от 1 до 100</i></blockquote>"
-            ),
+                f"💰 Стоимость: <b>{amount:.2f} ₽</b>\n"
+                f"💳 Ваш баланс: <b>{balance:.2f} ₽</b>"
+            )
+            keyboard = [
+                [InlineKeyboardButton("✅ Оплатить", callback_data='buy_confirm')],
+                [InlineKeyboardButton("❌ Отменить", callback_data='main_menu')]
+            ]
+        else:
+            text = (
+                f"❌ <b>Недостаточно средств</b>\n\n"
+                f"Сервис: 📱 Прокси для Telegram\n"
+                f"Период: {PERIODS.get(period)}\n\n"
+                f"💰 Стоимость: <b>{amount:.2f} ₽</b>\n"
+                f"💳 Ваш баланс: <b>{balance:.2f} ₽</b>\n\n"
+                f"<blockquote><i>Пополните баланс для продолжения</i></blockquote>"
+            )
+            keyboard = [
+                [InlineKeyboardButton("💳 Пополнить баланс", callback_data='balance')],
+                [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+            ]
+        
+        await query.message.edit_caption(
+            caption=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='HTML'
         )
-        
-        # Сохраняем ID сообщения для последующего редактирования
-        context.user_data['quantity_message_id'] = sent_message.message_id
 
 
 async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -340,15 +374,11 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
         else:
-            # MTProto — сообщения и медиа
+            # MTProto прокси
             secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
             tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={secret}"
-            # SOCKS5 — звонки и всё остальное
-            from core.config import SOCKS5_USER, SOCKS5_PASS, SOCKS5_PORT
-            socks_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={SOCKS5_PORT}&user={SOCKS5_USER}&pass={SOCKS5_PASS}"
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📱 Telegram (сообщения)", url=tg_link)],
-                [InlineKeyboardButton("📞 Telegram (звонки)", url=socks_link)],
+                [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
     else:

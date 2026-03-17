@@ -13,6 +13,7 @@ from telegram.ext import (
 from core.config import BOT_TOKEN
 from handlers import (
     start_handler,
+    check_sub_handler,
     balance_handler,
     my_proxies_handler,
     view_proxy_handler,
@@ -62,6 +63,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CommandHandler("start", start_handler))
     
     # Callback обработчики
+    application.add_handler(CallbackQueryHandler(check_sub_handler, pattern='^check_sub$'))
     application.add_handler(CallbackQueryHandler(start_handler, pattern='^main_menu$'))
     application.add_handler(CallbackQueryHandler(balance_handler, pattern='^balance$'))
     application.add_handler(CallbackQueryHandler(my_proxies_handler, pattern='^my_proxies$'))
