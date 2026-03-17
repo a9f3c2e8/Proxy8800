@@ -289,12 +289,11 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
         
         if service_type == 'proxy':
-            # Для MTProto используем ОБЩИЙ секрет для всех (dd + 32 hex для клиента)
+            # Для SOCKS5 используем общие логин/пароль
             import os
-            secret = os.getenv('MTPROTO_SECRET', 'dd7f3a9e2c8b1d4f6e5a9c3b7f2e8d1a99')
-            username = secret  # Сохраняем секрет как username
-            password = ''  # Пароль не нужен для MTProto
-            unique_port = PROXY_PORT  # MTProto на 8800 порту
+            username = os.getenv('PROXY_USER', '8800user')
+            password = os.getenv('PROXY_PASSWORD', '8800pass2024')
+            unique_port = PROXY_PORT  # SOCKS5 на 8800 порту
         else:
             # Для VPN генерируем логин и пароль (8 символов)
             username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
@@ -335,8 +334,8 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
         else:
-            # Для прокси показываем кнопку подключения к Telegram (MTProto)
-            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={first_proxy_data['username']}"
+            # Для SOCKS5 показываем ссылку для Telegram
+            tg_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&user={first_proxy_data['username']}&pass={first_proxy_data['password']}"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📱 Подключиться к Telegram", url=tg_link)],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]

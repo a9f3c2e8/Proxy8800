@@ -22,3 +22,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  web:
+    image: nginx:alpine
+    container_name: 8800-web
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

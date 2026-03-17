@@ -65,10 +65,10 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             period = proxy.get('period', 'N/A')
             service_type = proxy.get('service_type', 'proxy')
             
-            # Создаем ссылку для подключения к Telegram (MTProto)
-            # MTProto ссылка (dd + 32 hex для клиента)
-            secret = os.getenv('MTPROTO_SECRET', 'dd7f3a9e2c8b1d4f6e5a9c3b7f2e8d1a99')
-            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
+            # Создаем ссылку для подключения к Telegram (SOCKS5)
+            username = os.getenv('PROXY_USER', '8800user')
+            password = os.getenv('PROXY_PASSWORD', '8800pass2024')
+            tg_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={PROXY_PORT}&user={username}&pass={password}"
             
             text = (
                 f"📱 <b>Прокси для Telegram</b>\n\n"
@@ -166,9 +166,10 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         service_type = proxy.get('service_type', 'proxy')
         period = proxy.get('period', 'N/A')
         
-        # MTProto ссылка (dd + 32 hex для клиента)
-        secret = os.getenv('MTPROTO_SECRET', 'dd7f3a9e2c8b1d4f6e5a9c3b7f2e8d1a99')
-        tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
+        # SOCKS5 ссылка
+        username = os.getenv('PROXY_USER', '8800user')
+        password = os.getenv('PROXY_PASSWORD', '8800pass2024')
+        tg_link = f"https://t.me/socks?server={PROXY_DOMAIN}&port={PROXY_PORT}&user={username}&pass={password}"
         
         text = (
             f"📱 <b>Прокси для Telegram</b>\n\n"

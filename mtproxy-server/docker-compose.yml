@@ -1,12 +1,30 @@
 services:
-  mtproxy:
-    image: telegrammessenger/proxy:latest
-    container_name: 8800-mtproxy
+  socks5:
+    image: serjs/go-socks5-proxy
+    container_name: 8800-socks5
     restart: always
     ports:
-      - "8800:443"
+      - "8800:1080"
     environment:
-      - SECRET=7f3a9e2c8b1d4f6e5a9c3b7f2e8d1a99
+      - PROXY_USER=8800user
+      - PROXY_PASSWORD=8800pass2024
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  metrics:
+    image: python:3.11-slim
+    container_name: 8800-metrics
+    restart: always
+    ports:
+      - "8801:8801"
+    volumes:
+      - ./metrics.py:/app/metrics.py:ro
+      - /proc:/host/proc:ro
+    command: python /app/metrics.py
+    pid: host
     logging:
       driver: "json-file"
       options:
