@@ -86,16 +86,30 @@ def main() -> None:
     """Запуск бота"""
     logger.info("Запуск бота 8800.life...")
     
-    # Создание приложения
-    application = Application.builder().token(BOT_TOKEN).build()
+    # Создание приложения с увеличенными таймаутами
+    application = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .connect_timeout(30)
+        .read_timeout(30)
+        .write_timeout(30)
+        .pool_timeout(30)
+        .build()
+    )
     
     # Регистрация обработчиков
     setup_handlers(application)
     
     logger.info("Бот успешно запущен!")
     
-    # Запуск polling
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Запуск polling с увеличенным таймаутом
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        connect_timeout=30,
+        read_timeout=30,
+        write_timeout=30,
+        pool_timeout=30
+    )
 
 
 if __name__ == '__main__':
