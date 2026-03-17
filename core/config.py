@@ -33,6 +33,9 @@ CHANNEL_ID = os.getenv("CHANNEL_ID", "@connections8800")
 PLATEGA_MERCHANT_ID = os.getenv("PLATEGA_MERCHANT_ID", "")
 PLATEGA_API_KEY = os.getenv("PLATEGA_API_KEY", "")
 
+# VPN Subscription
+VLESS_SUB_URL = os.getenv("VLESS_SUB_URL", "http://8800.life:8080/sub")
+
 # Страны
 COUNTRIES = {
     'ru': '🇷🇺 Россия', 'de': '🇩🇪 Германия', 'us': '🇺🇸 США', 'nl': '🇳🇱 Нидерланды',

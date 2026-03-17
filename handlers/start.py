@@ -6,7 +6,7 @@ import hashlib
 from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from keyboards import main_menu_keyboard
-from core.config import MENU_IMAGES, CHANNEL_ID, PROXY_DOMAIN, PROXY_PORT, ADMIN_ID
+from core.config import MENU_IMAGES, CHANNEL_ID, PROXY_DOMAIN, PROXY_PORT, ADMIN_ID, VLESS_SUB_URL
 from core.database import db
 from utils import emoji
 
@@ -160,22 +160,21 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
     tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
 
-    # VLESS ссылка
-    vless_link = "https://t.me/connections8800"
+    # VLESS подписка
+    vless_link = VLESS_SUB_URL
 
     text = (
         "🎁 <b>Пробная подписка на 4 дня активирована!</b>\n\n"
         f"📱 <b>Прокси для Telegram</b>\n"
-        f"Нажми кнопку ниже — подключится автоматически\n\n"
+        f"Нажми кнопку — подключится автоматически\n\n"
         f"🌐 <b>VPN для всех приложений</b>\n"
-        f"Логин: <code>{vpn_data['username']}</code>\n"
-        f"Пароль: <code>{vpn_data['password']}</code>\n\n"
+        f"Нажми кнопку — добавь подписку в V2Box / Streisand\n\n"
         "<blockquote><i>Приятного использования! После окончания пробного периода — продлите в меню</i></blockquote>"
     )
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📱 Подключить прокси", url=tg_link)],
-        [InlineKeyboardButton("🌐 Подключить VPN", url=vless_link)],
+        [InlineKeyboardButton("🌐 Подключить VPN", callback_data='show_vpn_sub')],
         [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
     ])
 
@@ -189,3 +188,27 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
 
     logger.info(f"Пользователь {user_id} получил пробную подписку")
+
+
+async def show_vpn_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать ссылку подписки VPN для копирования"""
+    query = update.callback_query
+    await query.answer()
+
+    text = (
+        "🌐 <b>VPN — подключение</b>\n\n"
+        "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
+        "2. Скопируй ссылку ниже\n"
+        "3. Добавь подписку в приложении\n\n"
+        f"<code>{VLESS_SUB_URL}</code>\n\n"
+        "<blockquote><i>Нажми на ссылку чтобы скопировать</i></blockquote>"
+    )
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
+    ])
+
+    try:
+        await query.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
+    except Exception:
+        await query.message.edit_text(text=text, reply_markup=keyboard, parse_mode='HTML')
