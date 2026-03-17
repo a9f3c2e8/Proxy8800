@@ -20,13 +20,26 @@ async def buy_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     await query.answer()
     
-    text = (
-        f"🛒 <b>Выберите тип сервиса</b>\n\n"
-        f"<b>📱 Прокси</b>\n"
-        f"<blockquote><i>Для Telegram</i></blockquote>\n\n"
-        f"<b>🔴 VPN</b>\n"
-        f"<blockquote><i>Ведутся работы</i></blockquote>"
-    )
+    from core.config import ADMIN_ID
+    user_id = update.effective_user.id
+    is_admin = user_id == ADMIN_ID
+    
+    if is_admin:
+        text = (
+            f"🛒 <b>Выберите тип сервиса</b>\n\n"
+            f"<b>📱 Прокси</b>\n"
+            f"<blockquote><i>Для Telegram</i></blockquote>\n\n"
+            f"<b>🌐 VPN</b>\n"
+            f"<blockquote><i>Для всех приложений</i></blockquote>"
+        )
+    else:
+        text = (
+            f"🛒 <b>Выберите тип сервиса</b>\n\n"
+            f"<b>📱 Прокси</b>\n"
+            f"<blockquote><i>Для Telegram</i></blockquote>\n\n"
+            f"<b>🔴 VPN</b>\n"
+            f"<blockquote><i>Ведутся работы</i></blockquote>"
+        )
     
     from keyboards import service_type_keyboard
     
@@ -40,7 +53,7 @@ async def buy_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         msg = await query.message.edit_media(
             media=media,
-            reply_markup=service_type_keyboard()
+            reply_markup=service_type_keyboard(is_admin=is_admin)
         )
         # Сохраняем file_id если это первый раз
         if 'locations_photo_file_id' not in context.bot_data:
@@ -50,7 +63,7 @@ async def buy_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         msg = await query.message.reply_photo(
             photo=context.bot_data.get('locations_photo_file_id', MENU_IMAGES['locations']),
             caption=text,
-            reply_markup=service_type_keyboard(),
+            reply_markup=service_type_keyboard(is_admin=is_admin),
             parse_mode='HTML'
         )
         if 'locations_photo_file_id' not in context.bot_data:

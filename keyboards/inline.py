@@ -17,15 +17,24 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def service_type_keyboard() -> InlineKeyboardMarkup:
+def service_type_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
     """Выбор типа сервиса: Прокси или VPN"""
-    keyboard = [
-        [
-            InlineKeyboardButton("📱 Прокси", callback_data='buy_service_proxy'),
-            InlineKeyboardButton("🔴 VPN", callback_data='vpn_unavailable')
-        ],
-        [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-    ]
+    if is_admin:
+        keyboard = [
+            [
+                InlineKeyboardButton("📱 Прокси", callback_data='buy_service_proxy'),
+                InlineKeyboardButton("🌐 VPN", callback_data='buy_service_vpn')
+            ],
+            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+        ]
+    else:
+        keyboard = [
+            [
+                InlineKeyboardButton("📱 Прокси", callback_data='buy_service_proxy'),
+                InlineKeyboardButton("🔴 VPN", callback_data='vpn_unavailable')
+            ],
+            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+        ]
     return InlineKeyboardMarkup(keyboard)
 
 

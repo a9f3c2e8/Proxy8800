@@ -59,8 +59,15 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         row.append(InlineKeyboardButton("📱 Прокси", callback_data='buy_proxy'))
     
-    # VPN временно недоступен
-    row.append(InlineKeyboardButton("🔴 VPN", callback_data='vpn_unavailable'))
+    # VPN: открыт для админа, закрыт для остальных
+    from core.config import ADMIN_ID
+    if user_id == ADMIN_ID:
+        if vpn_list:
+            row.append(InlineKeyboardButton("🌐 VPN", callback_data='view_vpn'))
+        else:
+            row.append(InlineKeyboardButton("🌐 VPN", callback_data='buy_proxy'))
+    else:
+        row.append(InlineKeyboardButton("🔴 VPN", callback_data='vpn_unavailable'))
     
     keyboard.append(row)
     

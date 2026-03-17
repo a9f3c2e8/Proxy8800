@@ -185,7 +185,8 @@ async def handle_period_selection(update: Update, context: ContextTypes.DEFAULT_
             context.user_data['balance'] = db.get_balance(user_id)
         balance = context.user_data['balance']
         
-        if balance >= amount:
+        from core.config import ADMIN_ID
+        if user_id == ADMIN_ID or balance >= amount:
             # Достаточно средств - показываем кнопку "Оплатить"
             text = (
                 f"💳 <b>Подтверждение оплаты</b>\n\n"
