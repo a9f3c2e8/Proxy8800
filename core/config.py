@@ -29,6 +29,10 @@ SOCKS5_PORT = int(os.getenv("SOCKS5_PORT", "8800"))
 # Channel
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@connections8800")
 
+# Platega.io Payment
+PLATEGA_MERCHANT_ID = os.getenv("PLATEGA_MERCHANT_ID", "")
+PLATEGA_API_KEY = os.getenv("PLATEGA_API_KEY", "")
+
 # Страны
 COUNTRIES = {
     'ru': '🇷🇺 Россия', 'de': '🇩🇪 Германия', 'us': '🇺🇸 США', 'nl': '🇳🇱 Нидерланды',

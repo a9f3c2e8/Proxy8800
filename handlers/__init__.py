@@ -8,6 +8,13 @@ from .profile import profile_handler
 from .support import support_handler
 from .callback import callback_handler
 from .message import message_handler
+from .payment import (
+    topup_handler,
+    topup_amount_handler,
+    topup_custom_handler,
+    topup_method_handler,
+    topup_check_handler,
+)
 
 __all__ = [
     'start_handler',
@@ -22,5 +29,10 @@ __all__ = [
     'profile_handler',
     'support_handler',
     'callback_handler',
-    'message_handler'
+    'message_handler',
+    'topup_handler',
+    'topup_amount_handler',
+    'topup_custom_handler',
+    'topup_method_handler',
+    'topup_check_handler',
 ]

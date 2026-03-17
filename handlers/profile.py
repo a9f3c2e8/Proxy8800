@@ -65,6 +65,7 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     keyboard.append(row)
     
     # Остальные кнопки по одной
+    keyboard.append([InlineKeyboardButton("💳 Пополнить баланс", callback_data='topup')])
     keyboard.append([InlineKeyboardButton("📋 Все подключения", callback_data='my_proxies')])
     keyboard.append([InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')])
     

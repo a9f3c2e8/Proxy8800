@@ -20,8 +20,7 @@ def build_proxy_message(proxy, idx, total):
         tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
         text = (
             f"📱 <b>Прокси для Telegram</b> ({idx + 1}/{total})\n\n"
-            f"Период: {PERIODS.get(period, period)}\n\n"
-            f"<code>{tg_link}</code>"
+            f"Период: {PERIODS.get(period, period)}"
         )
         buttons = [[InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)]]
     else:

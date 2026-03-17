@@ -24,7 +24,12 @@ from handlers import (
     profile_handler,
     support_handler,
     callback_handler,
-    message_handler
+    message_handler,
+    topup_handler,
+    topup_amount_handler,
+    topup_custom_handler,
+    topup_method_handler,
+    topup_check_handler,
 )
 from handlers.admin import (
     admin_handler,
@@ -75,6 +80,13 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(help_handler, pattern='^help$'))
     application.add_handler(CallbackQueryHandler(profile_handler, pattern='^profile$'))
     application.add_handler(CallbackQueryHandler(support_handler, pattern='^support$'))
+    
+    # Платежи (topup)
+    application.add_handler(CallbackQueryHandler(topup_handler, pattern='^topup$'))
+    application.add_handler(CallbackQueryHandler(topup_amount_handler, pattern='^topup_amt_'))
+    application.add_handler(CallbackQueryHandler(topup_custom_handler, pattern='^topup_custom$'))
+    application.add_handler(CallbackQueryHandler(topup_method_handler, pattern='^topup_pay_'))
+    application.add_handler(CallbackQueryHandler(topup_check_handler, pattern='^topup_check$'))
     
     # Админ callback обработчики
     application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern='^admin_'))
