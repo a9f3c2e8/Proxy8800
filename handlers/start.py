@@ -62,16 +62,15 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Новый пользователь — предлагаем подписаться на канал
         channel_name = CHANNEL_ID.replace('@', '')
         text = (
-            f"{emoji.star()} <b>Добро пожаловать в 8800 Proxy!</b>\n\n"
-            f"Подпишитесь на наш канал и получите\n"
-            f"<b>бесплатную пробную подписку на 4 дня:</b>\n\n"
+            f"👋 <b>Привет!</b>\n\n"
+            f"Подпишись на канал и получи бесплатно на 4 дня:\n\n"
             f"📱 Прокси для Telegram\n"
-            f"🌐 VPN для всех сервисов\n\n"
-            f"<blockquote><i>После подписки нажмите «Проверить подписку»</i></blockquote>"
+            f"🌐 VPN для всех приложений\n\n"
+            f"<b>Это бесплатно</b> — просто подпишись и нажми кнопку 👇"
         )
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Подписаться на канал", url=f"https://t.me/{channel_name}")],
-            [InlineKeyboardButton("✅ Проверить подписку", callback_data='check_sub')],
+            [InlineKeyboardButton("📢 Подписаться", url=f"https://t.me/{channel_name}")],
+            [InlineKeyboardButton("🎁 Получить бесплатно", callback_data='check_sub')],
         ])
         msg = await update.message.reply_photo(
             photo=MENU_IMAGES['main'],
@@ -161,19 +160,22 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
     tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
 
+    # VLESS ссылка
+    vless_link = "https://t.me/connections8800"
+
     text = (
-        "🎉 <b>Пробная подписка активирована!</b>\n\n"
-        "Вам выданы на 4 дня:\n\n"
+        "🎁 <b>Пробная подписка на 4 дня активирована!</b>\n\n"
         f"📱 <b>Прокси для Telegram</b>\n"
-        f"<code>{tg_link}</code>\n\n"
-        f"🌐 <b>VPN для всех сервисов</b>\n"
+        f"Нажми кнопку ниже — подключится автоматически\n\n"
+        f"🌐 <b>VPN для всех приложений</b>\n"
         f"Логин: <code>{vpn_data['username']}</code>\n"
         f"Пароль: <code>{vpn_data['password']}</code>\n\n"
-        "<blockquote><i>Приятного использования!</i></blockquote>"
+        "<blockquote><i>Приятного использования! После окончания пробного периода — продлите в меню</i></blockquote>"
     )
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📱 Подключить прокси", url=tg_link)],
+        [InlineKeyboardButton("🌐 Подключить VPN", url=vless_link)],
         [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
     ])
 

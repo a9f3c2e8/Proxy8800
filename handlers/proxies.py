@@ -10,258 +10,123 @@ from core.config import COUNTRIES, PERIODS, MENU_IMAGES, PROXY_DOMAIN, PROXY_POR
 logger = logging.getLogger(__name__)
 
 
+def build_proxy_message(proxy, idx, total):
+    """Собрать текст и кнопки для одного прокси"""
+    service_type = proxy.get('service_type', 'proxy')
+    period = proxy.get('period', 'N/A')
+
+    if service_type == 'proxy':
+        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
+        tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
+        text = (
+            f"📱 <b>Прокси для Telegram</b> ({idx + 1}/{total})\n\n"
+            f"Период: {PERIODS.get(period, period)}\n\n"
+            f"<code>{tg_link}</code>"
+        )
+        buttons = [[InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)]]
+    else:
+        username = proxy.get('username', '')
+        password = proxy.get('password', '')
+        text = (
+            f"🌐 <b>VPN</b> ({idx + 1}/{total})\n\n"
+            f"Период: {PERIODS.get(period, period)}\n"
+            f"Логин: <code>{username}</code>\n"
+            f"Пароль: <code>{password}</code>"
+        )
+        buttons = []
+
+    # Пагинация
+    nav = []
+    if idx > 0:
+        nav.append(InlineKeyboardButton("⬅️", callback_data=f'proxy_page_{idx - 1}'))
+    if total > 1:
+        nav.append(InlineKeyboardButton(f"{idx + 1}/{total}", callback_data='proxy_page_noop'))
+    if idx < total - 1:
+        nav.append(InlineKeyboardButton("➡️", callback_data=f'proxy_page_{idx + 1}'))
+    if nav:
+        buttons.append(nav)
+
+    buttons.append([InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')])
+    return text, InlineKeyboardMarkup(buttons)
+
+
+async def show_proxy_page(message, proxies, idx, bot_data):
+    """Показать страницу прокси через edit_media"""
+    if not proxies:
+        text = (
+            "📋 <b>Ваши подключения</b>\n\n"
+            "У вас пока нет активных подключений.\n\n"
+            "<blockquote><i>Нажмите «Приобрести» чтобы купить</i></blockquote>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🛒 Приобрести", callback_data='buy_proxy')],
+            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+        ])
+    else:
+        idx = max(0, min(idx, len(proxies) - 1))
+        text, keyboard = build_proxy_message(proxies[idx], idx, len(proxies))
+
+    try:
+        media = InputMediaPhoto(
+            media=bot_data.get('main_photo_file_id', MENU_IMAGES['profile']),
+            caption=text, parse_mode='HTML'
+        )
+        await message.edit_media(media=media, reply_markup=keyboard)
+    except Exception as e:
+        logger.error(f"Ошибка edit_media: {e}")
+        try:
+            await message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
+        except Exception:
+            pass
+
+
 async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать список активных прокси пользователя"""
     query = update.callback_query
     user_id = update.effective_user.id
-    
-    # Быстрый ответ
     await query.answer()
-    
-    # Получаем прокси пользователя из базы
+
     proxies = db.get_user_proxies(user_id)
-    
-    if len(proxies) == 0:
-        text = (
-            "📋 <b>Ваши прокси</b>\n\n"
-            "У вас пока нет активных прокси.\n\n"
-            "<blockquote><i>Нажмите 'Купить прокси' чтобы приобрести</i></blockquote>"
-        )
-        
-        keyboard = [
-            [InlineKeyboardButton("🛒 Купить прокси", callback_data='buy_proxy')],
-            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-        ]
-        
-        try:
-            media = InputMediaPhoto(
-                media=MENU_IMAGES['profile'],
-                caption=text,
-                parse_mode='HTML'
-            )
-            await query.message.edit_media(
-                media=media,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as e:
-            logger.error(f"Ошибка редактирования медиа: {e}")
-            await query.message.delete()
-            await query.message.reply_photo(
-                photo=MENU_IMAGES['profile'],
-                caption=text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='HTML'
-            )
-    else:
-        # Показываем прокси по одному с кнопкой подключения
-        for idx, proxy in enumerate(proxies, 1):
-            proxy_id = proxy.get('id', 'N/A')
-            ip = proxy.get('ip', 'N/A')
-            port = proxy.get('port', 'N/A')
-            username = proxy.get('username', 'N/A')
-            password = proxy.get('password', 'N/A')
-            country_code = proxy.get('country', 'N/A').lower()
-            country_name = COUNTRIES.get(country_code, country_code.upper())
-            period = proxy.get('period', 'N/A')
-            service_type = proxy.get('service_type', 'proxy')
-            
-            # Создаем ссылку для подключения к Telegram (MTProto)
-            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
-            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
-            
-            text = (
-                f"📱 <b>Прокси для Telegram</b>\n\n"
-                f"Период: {PERIODS.get(period, period)}\n\n"
-                f"<code>{tg_link}</code>"
-            )
-            
-            # Создаем кнопки
-            keyboard = [
-                [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
-                [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-            ]
-            
-            if idx == 1:
-                # Первое сообщение - редактируем
-                try:
-                    media = InputMediaPhoto(
-                        media=MENU_IMAGES['profile'],
-                        caption=text,
-                        parse_mode='HTML'
-                    )
-                    await query.message.edit_media(
-                        media=media,
-                        reply_markup=InlineKeyboardMarkup(keyboard)
-                    )
-                except Exception as e:
-                    logger.error(f"Ошибка редактирования медиа: {e}")
-                    await query.message.delete()
-                    await query.message.reply_photo(
-                        photo=MENU_IMAGES['profile'],
-                        caption=text,
-                        reply_markup=InlineKeyboardMarkup(keyboard),
-                        parse_mode='HTML'
-                    )
-            else:
-                # Остальные - отправляем новыми сообщениями
-                await query.message.reply_photo(
-                    photo=MENU_IMAGES['profile'],
-                    caption=text,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode='HTML'
-                )
-    
+    context.user_data['cached_proxies'] = proxies
+    await show_proxy_page(query.message, proxies, 0, context.bot_data)
     logger.info(f"Пользователь {user_id} просмотрел список прокси")
+
+
+async def proxy_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Пагинация прокси"""
+    query = update.callback_query
+    user_id = update.effective_user.id
+    await query.answer()
+
+    data = query.data
+    if data == 'proxy_page_noop':
+        return
+
+    page = int(data.split('_')[-1])
+    proxies = context.user_data.get('cached_proxies') or db.get_user_proxies(user_id)
+    context.user_data['cached_proxies'] = proxies
+    await show_proxy_page(query.message, proxies, page, context.bot_data)
 
 
 async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать только прокси для Telegram"""
     query = update.callback_query
     user_id = update.effective_user.id
-    
-    # Быстрый ответ
     await query.answer()
-    
-    # Получаем только прокси (не VPN)
+
     all_proxies = db.get_user_proxies(user_id)
     proxies = [p for p in all_proxies if p.get('service_type', 'proxy') == 'proxy']
-    
-    if len(proxies) == 0:
-        text = (
-            "📱 <b>Прокси для Telegram</b>\n\n"
-            "У вас пока нет активных прокси.\n\n"
-            "<blockquote><i>Приобретите прокси для доступа к Telegram</i></blockquote>"
-        )
-        
-        keyboard = [
-            [InlineKeyboardButton("🛒 Приобрести", callback_data='buy_proxy')],
-            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-        ]
-        
-        try:
-            media = InputMediaPhoto(
-                media=MENU_IMAGES['profile'],
-                caption=text,
-                parse_mode='HTML'
-            )
-            await query.message.edit_media(
-                media=media,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as e:
-            logger.error(f"Ошибка редактирования медиа: {e}")
-    else:
-        # Показываем первый прокси
-        proxy = proxies[0]
-        proxy_id = proxy.get('id', 'N/A')
-        ip = proxy.get('ip', 'N/A')
-        port = proxy.get('port', 'N/A')
-        username = proxy.get('username', 'N/A')
-        password = proxy.get('password', 'N/A')
-        service_type = proxy.get('service_type', 'proxy')
-        period = proxy.get('period', 'N/A')
-        
-        # MTProto ссылка
-        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
-        tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
-        
-        text = (
-            f"📱 <b>Прокси для Telegram</b>\n\n"
-            f"Период: {PERIODS.get(period, period)}\n\n"
-            f"<code>{tg_link}</code>"
-        )
-        
-        keyboard = [
-            [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
-            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-        ]
-        
-        try:
-            media = InputMediaPhoto(
-                media=MENU_IMAGES['profile'],
-                caption=text,
-                parse_mode='HTML'
-            )
-            await query.message.edit_media(
-                media=media,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as e:
-            logger.error(f"Ошибка редактирования медиа: {e}")
+    context.user_data['cached_proxies'] = proxies
+    await show_proxy_page(query.message, proxies, 0, context.bot_data)
 
 
 async def view_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать только VPN"""
     query = update.callback_query
     user_id = update.effective_user.id
-    
-    # Быстрый ответ
     await query.answer()
-    
-    # Получаем только VPN
+
     all_proxies = db.get_user_proxies(user_id)
     vpns = [p for p in all_proxies if p.get('service_type', 'proxy') == 'vpn']
-    
-    if len(vpns) == 0:
-        text = (
-            "🌐 <b>VPN для всех сервисов</b>\n\n"
-            "У вас пока нет активного VPN.\n\n"
-            "<blockquote><i>Приобретите VPN для всех сервисов</i></blockquote>"
-        )
-        
-        keyboard = [
-            [InlineKeyboardButton("🛒 Приобрести", callback_data='buy_proxy')],
-            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-        ]
-        
-        try:
-            media = InputMediaPhoto(
-                media=MENU_IMAGES['profile'],
-                caption=text,
-                parse_mode='HTML'
-            )
-            await query.message.edit_media(
-                media=media,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as e:
-            logger.error(f"Ошибка редактирования медиа: {e}")
-    else:
-        # Показываем первый VPN
-        vpn = vpns[0]
-        ip = vpn.get('ip', 'N/A')
-        port = vpn.get('port', 'N/A')
-        username = vpn.get('username', 'N/A')
-        password = vpn.get('password', 'N/A')
-        period = vpn.get('period', 'N/A')
-        
-        happ_link = f"https://happ.page.link/?link=https://happ.page.link/proxy?server={ip}:{port}&login={username}&password={password}"
-        
-        text = (
-            f"🌐 <b>VPN для всех сервисов</b>\n\n"
-            f"IP: <code>{ip}</code>\n"
-            f"Порт: <code>{port}</code>\n"
-            f"Логин: <code>{username}</code>\n"
-            f"Пароль: <code>{password}</code>\n"
-            f"Период: {PERIODS.get(period, period)}\n\n"
-            f"<code>{happ_link}</code>"
-        )
-        
-        keyboard = [
-            [InlineKeyboardButton("🌐 Подключить к Happ", url=happ_link)],
-            [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-        ]
-        
-        try:
-            media = InputMediaPhoto(
-                media=MENU_IMAGES['profile'],
-                caption=text,
-                parse_mode='HTML'
-            )
-            await query.message.edit_media(
-                media=media,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as e:
-            logger.error(f"Ошибка редактирования медиа: {e}")
-
+    context.user_data['cached_proxies'] = vpns
+    await show_proxy_page(query.message, vpns, 0, context.bot_data)

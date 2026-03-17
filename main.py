@@ -18,6 +18,7 @@ from handlers import (
     my_proxies_handler,
     view_proxy_handler,
     view_vpn_handler,
+    proxy_page_handler,
     buy_proxy_handler,
     help_handler,
     profile_handler,
@@ -67,6 +68,7 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(start_handler, pattern='^main_menu$'))
     application.add_handler(CallbackQueryHandler(balance_handler, pattern='^balance$'))
     application.add_handler(CallbackQueryHandler(my_proxies_handler, pattern='^my_proxies$'))
+    application.add_handler(CallbackQueryHandler(proxy_page_handler, pattern='^proxy_page_'))
     application.add_handler(CallbackQueryHandler(view_proxy_handler, pattern='^view_proxy$'))
     application.add_handler(CallbackQueryHandler(view_vpn_handler, pattern='^view_vpn$'))
     application.add_handler(CallbackQueryHandler(buy_proxy_handler, pattern='^buy_proxy$'))
