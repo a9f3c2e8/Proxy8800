@@ -1,12 +1,13 @@
-"""Сервер подписок VPN — отдаёт персональные VLESS ключи"""
+"""Сервер подписок VPN — отдаёт персональные VLESS ключи + пуш на Amsterdam"""
 import base64
 import logging
+import aiohttp
 from aiohttp import web
 from core.database import db
 
 logger = logging.getLogger(__name__)
 
-# VLESS параметры (общие для всех, UUID — персональный)
+# VLESS параметры
 VLESS_SERVER = "8800.life"
 VLESS_PORT = 2053
 VLESS_PARAMS = (
@@ -20,25 +21,66 @@ VLESS_PARAMS = (
     "&type=tcp"
 )
 
+# Amsterdam sub-server
+AMS_SUB_URL = "http://91.84.119.132:8889"
+AMS_API_SECRET = "8800life-sync-key"
+
 
 def build_vless_uri(uuid: str, name: str = "8800%20connection's") -> str:
-    """Собрать VLESS URI с персональным UUID"""
     return f"vless://{uuid}@{VLESS_SERVER}:{VLESS_PORT}?{VLESS_PARAMS}#{name}"
 
 
+async def push_vpn_token(token: str, uuid: str):
+    """Отправить token+uuid на амстердамский sub-server"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{AMS_SUB_URL}/api/push-token",
+                json={"token": token, "uuid": uuid},
+                headers={"Authorization": f"Bearer {AMS_API_SECRET}"},
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                result = await resp.text()
+                logger.info(f"Push token to AMS: {resp.status} {result}")
+    except Exception as e:
+        logger.error(f"Failed to push token to AMS: {e}")
+
+
+async def push_all_tokens():
+    """Отправить все токены на амстердамский sub-server"""
+    try:
+        from core.database import db
+        conn = db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT token, uuid FROM vpn_keys")
+        rows = cursor.fetchall()
+        conn.close()
+        tokens = {row["token"]: row["uuid"] for row in rows}
+        if not tokens:
+            logger.info("No VPN tokens to push")
+            return
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{AMS_SUB_URL}/api/push-all",
+                json={"tokens": tokens},
+                headers={"Authorization": f"Bearer {AMS_API_SECRET}"},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                result = await resp.text()
+                logger.info(f"Push all tokens to AMS: {resp.status} {result}")
+    except Exception as e:
+        logger.error(f"Failed to push all tokens to AMS: {e}")
+
+
 async def handle_sub(request: web.Request) -> web.Response:
-    """Отдать подписку по токену"""
     token = request.match_info.get("token", "")
     if not token:
         return web.Response(status=404, text="not found")
-
     vpn_key = db.get_vpn_key_by_token(token)
     if not vpn_key:
         return web.Response(status=404, text="not found")
-
     uri = build_vless_uri(vpn_key["uuid"])
     b64 = base64.b64encode(uri.encode()).decode()
-
     return web.Response(
         text=b64,
         content_type="text/plain",
@@ -53,7 +95,6 @@ async def handle_sub(request: web.Request) -> web.Response:
 
 
 async def handle_uuids(request: web.Request) -> web.Response:
-    """Отдать все UUID для обновления конфига XRay (внутренний API)"""
     uuids = db.get_all_vpn_uuids()
     import json
     return web.Response(
@@ -63,7 +104,6 @@ async def handle_uuids(request: web.Request) -> web.Response:
 
 
 def create_sub_app() -> web.Application:
-    """Создать aiohttp приложение для подписок"""
     app = web.Application()
     app.router.add_get("/sub/{token}", handle_sub)
     app.router.add_get("/api/uuids", handle_uuids)
@@ -71,11 +111,12 @@ def create_sub_app() -> web.Application:
 
 
 async def start_sub_server(port: int = 8888):
-    """Запустить сервер подписок"""
     app = create_sub_app()
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     logger.info(f"Subscription server started on port {port}")
+    # Пушим все существующие токены на амстердам при старте
+    await push_all_tokens()
     return runner

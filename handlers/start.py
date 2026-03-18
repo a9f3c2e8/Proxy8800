@@ -37,8 +37,11 @@ def generate_trial_proxy(user_id: int, service_type: str, index: int) -> dict:
         vpn_token = hashlib.md5(f"{user_id}:trial:{vless_uuid}".encode()).hexdigest()[:16]
         username = vless_uuid
         password = vpn_token
-        # Сохраняем VPN ключ
+        # Сохраняем VPN ключ и пушим на амстердам
         db.create_vpn_key(user_id, vless_uuid, vpn_token)
+        import asyncio
+        from services.subscription import push_vpn_token
+        asyncio.ensure_future(push_vpn_token(vpn_token, vless_uuid))
 
     return {
         'id': proxy_id,
