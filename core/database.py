@@ -85,6 +85,20 @@ class Database:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_data_user_id ON user_data(user_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
         
+        # Таблица VPN ключей
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS vpn_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                uuid TEXT NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_vpn_keys_user_id ON vpn_keys(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_vpn_keys_token ON vpn_keys(token)')
+        
         conn.commit()
         conn.close()
         logger.info("База данных SQLite инициализирована")
@@ -441,6 +455,44 @@ class Database:
         conn.close()
         
         return count
+    
+    # VPN ключи
+    def create_vpn_key(self, user_id: int, vless_uuid: str, token: str):
+        """Создать VPN ключ для пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO vpn_keys (user_id, uuid, token) VALUES (?, ?, ?)
+        ''', (user_id, vless_uuid, token))
+        conn.commit()
+        conn.close()
+    
+    def get_vpn_key_by_token(self, token: str) -> Optional[Dict]:
+        """Получить VPN ключ по токену"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM vpn_keys WHERE token = ?', (token,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+    
+    def get_user_vpn_keys(self, user_id: int) -> List[Dict]:
+        """Получить все VPN ключи пользователя"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM vpn_keys WHERE user_id = ? ORDER BY created_at DESC', (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    
+    def get_all_vpn_uuids(self) -> List[str]:
+        """Получить все UUID для конфига XRay"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT uuid FROM vpn_keys')
+        rows = cursor.fetchall()
+        conn.close()
+        return [row['uuid'] for row in rows]
 
 
 # Глобальный экземпляр базы данных

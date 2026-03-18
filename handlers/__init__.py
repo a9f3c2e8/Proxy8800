@@ -1,5 +1,5 @@
 """Обработчики бота"""
-from .start import start_handler, check_sub_handler, show_vpn_sub_handler
+from .start import start_handler, check_sub_handler, show_vpn_sub_handler, show_vpn_key_handler
 from .balance import balance_handler
 from .proxies import my_proxies_handler, view_proxy_handler, view_vpn_handler, proxy_page_handler
 from .buy import buy_proxy_handler
@@ -20,6 +20,7 @@ __all__ = [
     'start_handler',
     'check_sub_handler',
     'show_vpn_sub_handler',
+    'show_vpn_key_handler',
     'balance_handler',
     'my_proxies_handler',
     'view_proxy_handler',

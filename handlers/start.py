@@ -6,7 +6,7 @@ import hashlib
 from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from keyboards import main_menu_keyboard
-from core.config import MENU_IMAGES, CHANNEL_ID, PROXY_DOMAIN, PROXY_PORT, ADMIN_ID, VLESS_SUB_URL
+from core.config import MENU_IMAGES, CHANNEL_ID, PROXY_DOMAIN, PROXY_PORT, ADMIN_ID
 from core.database import db
 from utils import emoji
 
@@ -32,8 +32,13 @@ def generate_trial_proxy(user_id: int, service_type: str, index: int) -> dict:
         username = secret
         password = ''
     else:
-        username = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
-        password = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
+        import uuid as uuid_mod
+        vless_uuid = str(uuid_mod.uuid4())
+        vpn_token = hashlib.md5(f"{user_id}:trial:{vless_uuid}".encode()).hexdigest()[:16]
+        username = vless_uuid
+        password = vpn_token
+        # Сохраняем VPN ключ
+        db.create_vpn_key(user_id, vless_uuid, vpn_token)
 
     return {
         'id': proxy_id,
@@ -160,21 +165,22 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
     tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
 
-    # VLESS подписка
-    vless_link = VLESS_SUB_URL
+    # VLESS подписка — персональная
+    vpn_token = vpn_data['password']  # токен
+    sub_url = f"http://8800.life:8080/sub/{vpn_token}"
 
     text = (
         "🎁 <b>Пробная подписка на 4 дня активирована!</b>\n\n"
         f"📱 <b>Прокси для Telegram</b>\n"
         f"Нажми кнопку — подключится автоматически\n\n"
         f"🌐 <b>VPN для всех приложений</b>\n"
-        f"Нажми кнопку — добавь подписку в V2Box / Streisand\n\n"
+        f"Нажми кнопку — скопируй ссылку в V2Box / Streisand\n\n"
         "<blockquote><i>Приятного использования! После окончания пробного периода — продлите в меню</i></blockquote>"
     )
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📱 Подключить прокси", url=tg_link)],
-        [InlineKeyboardButton("🌐 Подключить VPN", callback_data='show_vpn_sub')],
+        [InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')],
         [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
     ])
 
@@ -191,19 +197,61 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def show_vpn_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показать ссылку подписки VPN для копирования"""
+    """Показать список VPN ключей пользователя"""
+    query = update.callback_query
+    user_id = update.effective_user.id
+    await query.answer()
+
+    vpn_keys = db.get_user_vpn_keys(user_id)
+    
+    if not vpn_keys:
+        text = (
+            "🌐 <b>VPN</b>\n\n"
+            "У вас нет активных VPN ключей.\n\n"
+            "<blockquote><i>Купите VPN в меню «Приобрести»</i></blockquote>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🛒 Приобрести", callback_data='buy_proxy')],
+            [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
+        ])
+    else:
+        # Показываем последний ключ
+        key = vpn_keys[0]
+        sub_url = f"http://8800.life:8080/sub/{key['token']}"
+        text = (
+            "🌐 <b>VPN — подключение</b>\n\n"
+            "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
+            "2. Скопируй ссылку ниже\n"
+            "3. Добавь подписку в приложении\n\n"
+            f"<code>{sub_url}</code>\n\n"
+            "<blockquote><i>Нажми на ссылку чтобы скопировать</i></blockquote>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
+        ])
+
+    try:
+        await query.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
+    except Exception:
+        await query.message.edit_text(text=text, reply_markup=keyboard, parse_mode='HTML')
+
+
+async def show_vpn_key_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать конкретный VPN ключ по токену"""
     query = update.callback_query
     await query.answer()
+
+    token = query.data.replace('show_vpn_key_', '')
+    sub_url = f"http://8800.life:8080/sub/{token}"
 
     text = (
         "🌐 <b>VPN — подключение</b>\n\n"
         "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
         "2. Скопируй ссылку ниже\n"
         "3. Добавь подписку в приложении\n\n"
-        f"<code>{VLESS_SUB_URL}</code>\n\n"
+        f"<code>{sub_url}</code>\n\n"
         "<blockquote><i>Нажми на ссылку чтобы скопировать</i></blockquote>"
     )
-
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
     ])

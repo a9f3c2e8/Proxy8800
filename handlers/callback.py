@@ -336,10 +336,15 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
             password = ''
             unique_port = PROXY_PORT
         else:
-            # Для VPN генерируем логин и пароль (8 символов)
-            username = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-            password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+            # Для VPN генерируем UUID и токен подписки
+            import uuid as uuid_mod
+            vless_uuid = str(uuid_mod.uuid4())
+            vpn_token = hashlib.md5(f"{user_id}:{vless_uuid}:{random.randint(1000,9999)}".encode()).hexdigest()[:16]
+            username = vless_uuid
+            password = vpn_token
             unique_port = PROXY_PORT
+            # Сохраняем VPN ключ в БД
+            db.create_vpn_key(user_id, vless_uuid, vpn_token)
         
         proxy_data = {
             'id': proxy_id,
@@ -368,10 +373,11 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     # Создаем кнопки с ссылкой на подключение
     if first_proxy_data:
         if service_type == 'vpn':
-            # Для VPN показываем кнопку с подпиской
-            from core.config import VLESS_SUB_URL
+            # Для VPN показываем персональную подписку
+            vpn_token = first_proxy_data['password']  # токен сохранён в password
+            sub_url = f"http://8800.life:8080/sub/{vpn_token}"
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🌐 Подключить VPN", callback_data='show_vpn_sub')],
+                [InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')],
                 [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
             ])
         else:

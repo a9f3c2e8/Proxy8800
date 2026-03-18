@@ -1,5 +1,6 @@
 """Главный файл запуска бота"""
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -15,6 +16,7 @@ from handlers import (
     start_handler,
     check_sub_handler,
     show_vpn_sub_handler,
+    show_vpn_key_handler,
     balance_handler,
     my_proxies_handler,
     view_proxy_handler,
@@ -38,6 +40,7 @@ from handlers.admin import (
     admin_message_handler,
     is_admin
 )
+from services.subscription import start_sub_server
 
 # Настройка логирования
 logging.basicConfig(
@@ -45,8 +48,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# Отключаем лишние логи httpx
 logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
@@ -58,6 +59,11 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await admin_message_handler(update, context)
     else:
         await message_handler(update, context)
+
+
+async def post_init(application: Application) -> None:
+    """Запуск subscription сервера после инициализации бота"""
+    await start_sub_server(port=8888)
 
 
 def setup_handlers(application: Application) -> None:
@@ -72,6 +78,7 @@ def setup_handlers(application: Application) -> None:
     # Callback обработчики
     application.add_handler(CallbackQueryHandler(check_sub_handler, pattern='^check_sub$'))
     application.add_handler(CallbackQueryHandler(show_vpn_sub_handler, pattern='^show_vpn_sub$'))
+    application.add_handler(CallbackQueryHandler(show_vpn_key_handler, pattern='^show_vpn_key_'))
     application.add_handler(CallbackQueryHandler(start_handler, pattern='^main_menu$'))
     application.add_handler(CallbackQueryHandler(balance_handler, pattern='^balance$'))
     application.add_handler(CallbackQueryHandler(my_proxies_handler, pattern='^my_proxies$'))
@@ -104,7 +111,6 @@ def main() -> None:
     """Запуск бота"""
     logger.info("Запуск бота 8800.life...")
     
-    # Создание приложения с увеличенными таймаутами
     application = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -112,15 +118,14 @@ def main() -> None:
         .read_timeout(30)
         .write_timeout(30)
         .pool_timeout(30)
+        .post_init(post_init)
         .build()
     )
     
-    # Регистрация обработчиков
     setup_handlers(application)
     
     logger.info("Бот успешно запущен!")
     
-    # Запуск polling с увеличенным таймаутом
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
         connect_timeout=30,

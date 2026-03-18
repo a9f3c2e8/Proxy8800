@@ -24,15 +24,14 @@ def build_proxy_message(proxy, idx, total):
         )
         buttons = [[InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)]]
     else:
-        username = proxy.get('username', '')
-        password = proxy.get('password', '')
+        vpn_token = proxy.get('password', '')
+        sub_url = f"http://8800.life:8080/sub/{vpn_token}"
         text = (
             f"🌐 <b>VPN</b> ({idx + 1}/{total})\n\n"
-            f"Период: {PERIODS.get(period, period)}\n"
-            f"Логин: <code>{username}</code>\n"
-            f"Пароль: <code>{password}</code>"
+            f"Период: {PERIODS.get(period, period)}\n\n"
+            f"Ссылка подписки:\n<code>{sub_url}</code>"
         )
-        buttons = []
+        buttons = [[InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')]]
 
     # Пагинация
     nav = []
