@@ -6,6 +6,8 @@ services:
     image: 8800-bot:latest
     container_name: 8800-bot
     restart: always
+    ports:
+      - "8888:8888"
     volumes:
       - ./core:/app/core
       - ./handlers:/app/handlers
