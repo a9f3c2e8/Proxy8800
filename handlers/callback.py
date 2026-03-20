@@ -338,6 +338,10 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                 # Сохраняем VPN ключ в БД
                 db.create_vpn_key(user_id, vless_uuid, vpn_token)
                 logger.info(f"VPN key created: token={vpn_token} uuid={vless_uuid[:8]}")
+                # Пушим токен на Amsterdam
+                import asyncio
+                from services.subscription import push_vpn_token
+                asyncio.ensure_future(push_vpn_token(vpn_token, vless_uuid))
             
             proxy_data = {
                 'id': proxy_id,

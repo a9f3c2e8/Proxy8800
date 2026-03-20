@@ -1,4 +1,4 @@
-"""Сервер подписок VPN — отдаёт персональные VLESS ключи + пуш на Amsterdam"""
+"""Сервер подписок VPN — отдаёт персональные VLESS ключи + синхронизация с Amsterdam XRay"""
 import asyncio
 import base64
 import logging
@@ -22,8 +22,8 @@ VLESS_PARAMS = (
     "&type=tcp"
 )
 
-# Amsterdam sub-server (через nginx на 8080)
-AMS_SUB_URL = "http://8800.life:8080"
+# Amsterdam sync URL (через SSH туннель, Amsterdam дёргает localhost:9888)
+AMS_SYNC_URL = "http://8800.life:8080/api/trigger-sync"
 AMS_API_SECRET = "8800life-sync-key"
 
 
@@ -32,53 +32,13 @@ def build_vless_uri(uuid: str, name: str = "%F0%9F%87%B3%F0%9F%87%B1%20NL%20%7C%
 
 
 async def push_vpn_token(token: str, uuid: str):
-    """Отправить token+uuid на амстердамский sub-server"""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{AMS_SUB_URL}/api/push-token",
-                json={"token": token, "uuid": uuid},
-                headers={"Authorization": f"Bearer {AMS_API_SECRET}"},
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                result = await resp.text()
-                logger.info(f"Push token to AMS: {resp.status} {result}")
-    except Exception as e:
-        logger.error(f"Failed to push token to AMS: {e}")
-
-
-async def push_all_tokens():
-    """Отправить все токены на амстердамский sub-server"""
-    try:
-        conn = db._get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT token, uuid FROM vpn_keys")
-        rows = cursor.fetchall()
-        conn.close()
-        tokens = {row["token"]: row["uuid"] for row in rows}
-        if not tokens:
-            return
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{AMS_SUB_URL}/api/push-all",
-                json={"tokens": tokens},
-                headers={"Authorization": f"Bearer {AMS_API_SECRET}"},
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as resp:
-                result = await resp.text()
-                logger.info(f"Sync tokens to AMS: {resp.status} {result}")
-    except Exception as e:
-        logger.error(f"Failed to sync tokens to AMS: {e}")
-
-
-async def periodic_sync():
-    """Фоновая задача — синхронизация токенов каждые 60 сек"""
-    while True:
-        await asyncio.sleep(60)
-        await push_all_tokens()
+    """Уведомить Amsterdam о новом токене — триггерим sync"""
+    logger.info(f"New VPN key: token={token[:8]}... uuid={uuid[:8]}...")
+    # Синхронизация произойдёт через periodic_sync или по запросу /api/uuids
 
 
 async def handle_sub(request: web.Request) -> web.Response:
+    """Отдать подписку по токену"""
     token = request.match_info.get("token", "")
     if not token:
         return web.Response(status=404, text="not found")
@@ -102,6 +62,7 @@ async def handle_sub(request: web.Request) -> web.Response:
 
 
 async def handle_uuids(request: web.Request) -> web.Response:
+    """Отдать все UUID для XRay конфига"""
     uuids = db.get_all_vpn_uuids()
     import json
     return web.Response(
