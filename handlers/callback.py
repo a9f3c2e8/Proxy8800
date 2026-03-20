@@ -277,21 +277,24 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     
     try:
         # Используем кэш вместо БД
-        order_data = {
-            'country': context.user_data.get('buy_country') or db.get_user_data(user_id, 'buy_country'),
-            'quantity': context.user_data.get('buy_quantity') or db.get_user_data(user_id, 'buy_quantity'),
-            'period': context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period')
-        }
-        
-        # Получаем стоимость из кэша
+        country = context.user_data.get('buy_country') or db.get_user_data(user_id, 'buy_country') or 'nl'
+        quantity = context.user_data.get('buy_quantity') or db.get_user_data(user_id, 'buy_quantity') or 1
+        period = context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period') or '30'
         amount = context.user_data.get('buy_amount') or db.get_user_data(user_id, 'buy_amount', 0)
+        service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
+        
+        # Приводим типы
+        quantity = int(quantity) if quantity else 1
+        amount = float(amount) if amount else 0
+        
+        logger.info(f"Order confirm: user={user_id} type={service_type} qty={quantity} amount={amount}")
         
         # Проверяем баланс и списываем
+        from core.config import ADMIN_ID
+        is_admin_user = (user_id == ADMIN_ID)
+        
         if not db.subtract_balance(user_id, amount):
-            from core.config import ADMIN_ID
-            if user_id == ADMIN_ID:
-                pass
-            else:
+            if not is_admin_user:
                 balance = db.get_balance(user_id)
                 context.user_data['balance'] = balance
                 await query.message.edit_caption(
@@ -305,6 +308,8 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                     parse_mode='HTML'
                 )
                 return
+            # Админ — пропускаем проверку баланса
+            logger.info(f"Admin bypass balance check for {amount:.2f}")
         
         context.user_data['balance'] = db.get_balance(user_id)
         
@@ -312,9 +317,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         import hashlib
         from core.config import PROXY_DOMAIN, PROXY_PORT
         
-        quantity = order_data['quantity']
-        country_code = order_data['country']
-        service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
+        country_code = country
         
         first_proxy_data = None
         
@@ -350,7 +353,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
                 'username': username,
                 'password': password,
                 'country': country_code,
-                'period': order_data['period'],
+                'period': period,
                 'service_type': service_type
             }
             db.assign_proxy(user_id, proxy_id, proxy_data)
@@ -391,3 +394,11 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         )
     except Exception as e:
         logger.error(f"Order confirmation error for user {user_id}: {e}", exc_info=True)
+        try:
+            await query.message.edit_caption(
+                caption=f"❌ <b>Ошибка при создании заказа</b>\n\n<code>{e}</code>",
+                reply_markup=back_to_main_keyboard(),
+                parse_mode='HTML'
+            )
+        except Exception:
+            pass
