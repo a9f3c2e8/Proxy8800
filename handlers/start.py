@@ -158,12 +158,7 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     vpn_data = generate_trial_proxy(user_id, 'vpn', 1)
     db.assign_proxy(user_id, vpn_data['id'], vpn_data)
 
-    # Пушим VPN токен на амстердам
-    from services.subscription import push_vpn_token
-    try:
-        await push_vpn_token(vpn_data['password'], vpn_data['username'])
-    except Exception as e:
-        logger.error(f"Push VPN token failed: {e}")
+    # Пушим VPN токен на амстердам (не нужен с SSH туннелем)
 
     # Отмечаем что триал получен
     db.set_user_data(user_id, 'got_trial', True)

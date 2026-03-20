@@ -275,130 +275,115 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     user_id = update.effective_user.id
     
-    # Используем кэш вместо БД
-    order_data = {
-        'country': context.user_data.get('buy_country') or db.get_user_data(user_id, 'buy_country'),
-        'quantity': context.user_data.get('buy_quantity') or db.get_user_data(user_id, 'buy_quantity'),
-        'period': context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period')
-    }
-    
-    # Получаем стоимость из кэша
-    amount = context.user_data.get('buy_amount') or db.get_user_data(user_id, 'buy_amount', 0)
-    
-    # Проверяем баланс и списываем
-    if not db.subtract_balance(user_id, amount):
-        # Если админ - пропускаем проверку баланса
-        from core.config import ADMIN_ID
-        if user_id == ADMIN_ID:
-            pass  # Админ покупает бесплатно
-        else:
-            balance = db.get_balance(user_id)
-            context.user_data['balance'] = balance
-            await query.message.edit_caption(
-                caption=(
-                    "❌ <b>Недостаточно средств!</b>\n\n"
-                    f"Стоимость заказа: {amount:.2f} ₽\n"
-                    f"Ваш баланс: {balance:.2f} ₽\n\n"
-                    "Пополните баланс и попробуйте снова."
-                ),
-                reply_markup=back_to_main_keyboard(),
-                parse_mode='HTML'
-            )
-            return
-    
-    # Обновляем кэш баланса
-    context.user_data['balance'] = db.get_balance(user_id)
-    
-    # Генерируем прокси данные
-    import random
-    import string
-    import hashlib
-    from core.config import PROXY_DOMAIN, PROXY_PORT
-    
-    quantity = order_data['quantity']
-    country_code = order_data['country']
-    service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
-    
-    # Сохраняем данные первого прокси для кнопки
-    first_proxy_data = None
-    
-    # Выдаем прокси пользователю
-    for i in range(quantity):
-        # Генерируем proxy_id (8 символов)
-        data = f"{user_id}:{i}:{random.randint(1000, 9999)}"
-        proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
-        
-        if service_type == 'proxy':
-            # Для MTProto используем общий секрет
-            import os
-            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
-            username = secret
-            password = ''
-            unique_port = PROXY_PORT
-        else:
-            # Для VPN генерируем UUID и токен подписки
-            import uuid as uuid_mod
-            vless_uuid = str(uuid_mod.uuid4())
-            vpn_token = hashlib.md5(f"{user_id}:{vless_uuid}:{random.randint(1000,9999)}".encode()).hexdigest()[:16]
-            username = vless_uuid
-            password = vpn_token
-            unique_port = PROXY_PORT
-            # Сохраняем VPN ключ в БД и пушим на амстердам
-            db.create_vpn_key(user_id, vless_uuid, vpn_token)
-            from services.subscription import push_vpn_token
-            try:
-                await push_vpn_token(vpn_token, vless_uuid)
-            except Exception as e:
-                logger.error(f"Push VPN token failed: {e}")
-        
-        proxy_data = {
-            'id': proxy_id,
-            'ip': PROXY_DOMAIN,
-            'port': unique_port,
-            'username': username,
-            'password': password,
-            'country': country_code,
-            'period': order_data['period'],
-            'service_type': service_type
+    try:
+        # Используем кэш вместо БД
+        order_data = {
+            'country': context.user_data.get('buy_country') or db.get_user_data(user_id, 'buy_country'),
+            'quantity': context.user_data.get('buy_quantity') or db.get_user_data(user_id, 'buy_quantity'),
+            'period': context.user_data.get('buy_period') or db.get_user_data(user_id, 'buy_period')
         }
-        db.assign_proxy(user_id, proxy_id, proxy_data)
         
-        # Сохраняем первый для кнопки
-        if i == 0:
-            first_proxy_data = proxy_data
-    
-    text = (
-        "✅ <b>Заказ успешно создан!</b>\n\n"
-        f"Выдано: {quantity} шт.\n"
-        f"Списано: {amount:.2f} ₽\n"
-        f"Остаток баланса: {db.get_balance(user_id):.2f} ₽"
-    )
-    logger.info(f"Пользователь {user_id} купил {quantity} {service_type} за {amount:.2f} ₽")
-    
-    # Создаем кнопки с ссылкой на подключение
-    if first_proxy_data:
-        if service_type == 'vpn':
-            # Для VPN показываем персональную подписку
-            vpn_token = first_proxy_data['password']  # токен сохранён в password
-            sub_url = f"http://8800.life:8080/sub/{vpn_token}"
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')],
-                [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-            ])
+        # Получаем стоимость из кэша
+        amount = context.user_data.get('buy_amount') or db.get_user_data(user_id, 'buy_amount', 0)
+        
+        # Проверяем баланс и списываем
+        if not db.subtract_balance(user_id, amount):
+            from core.config import ADMIN_ID
+            if user_id == ADMIN_ID:
+                pass
+            else:
+                balance = db.get_balance(user_id)
+                context.user_data['balance'] = balance
+                await query.message.edit_caption(
+                    caption=(
+                        "❌ <b>Недостаточно средств!</b>\n\n"
+                        f"Стоимость заказа: {amount:.2f} ₽\n"
+                        f"Ваш баланс: {balance:.2f} ₽\n\n"
+                        "Пополните баланс и попробуйте снова."
+                    ),
+                    reply_markup=back_to_main_keyboard(),
+                    parse_mode='HTML'
+                )
+                return
+        
+        context.user_data['balance'] = db.get_balance(user_id)
+        
+        import random
+        import hashlib
+        from core.config import PROXY_DOMAIN, PROXY_PORT
+        
+        quantity = order_data['quantity']
+        country_code = order_data['country']
+        service_type = context.user_data.get('service_type') or db.get_user_data(user_id, 'service_type', 'proxy')
+        
+        first_proxy_data = None
+        
+        for i in range(quantity):
+            data = f"{user_id}:{i}:{random.randint(1000, 9999)}"
+            proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
+            
+            if service_type == 'proxy':
+                import os
+                secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe63646e2e636c6f7564666c6172652e636f6d')
+                username = secret
+                password = ''
+                unique_port = PROXY_PORT
+            else:
+                import uuid as uuid_mod
+                vless_uuid = str(uuid_mod.uuid4())
+                vpn_token = hashlib.md5(f"{user_id}:{vless_uuid}:{random.randint(1000,9999)}".encode()).hexdigest()[:16]
+                username = vless_uuid
+                password = vpn_token
+                unique_port = PROXY_PORT
+                # Сохраняем VPN ключ в БД
+                db.create_vpn_key(user_id, vless_uuid, vpn_token)
+                logger.info(f"VPN key created: token={vpn_token} uuid={vless_uuid[:8]}")
+            
+            proxy_data = {
+                'id': proxy_id,
+                'ip': PROXY_DOMAIN,
+                'port': unique_port,
+                'username': username,
+                'password': password,
+                'country': country_code,
+                'period': order_data['period'],
+                'service_type': service_type
+            }
+            db.assign_proxy(user_id, proxy_id, proxy_data)
+            
+            if i == 0:
+                first_proxy_data = proxy_data
+        
+        logger.info(f"Пользователь {user_id} купил {quantity} {service_type} за {amount:.2f} ₽")
+        
+        text = (
+            "✅ <b>Заказ успешно создан!</b>\n\n"
+            f"Выдано: {quantity} шт.\n"
+            f"Списано: {amount:.2f} ₽\n"
+            f"Остаток баланса: {db.get_balance(user_id):.2f} ₽"
+        )
+        
+        if first_proxy_data:
+            if service_type == 'vpn':
+                vpn_token = first_proxy_data['password']
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')],
+                    [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+                ])
+            else:
+                secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
+                tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={secret}"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
+                    [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
+                ])
         else:
-            # MTProto прокси
-            secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
-            tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={first_proxy_data['port']}&secret={secret}"
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📱 Подключить к Telegram", url=tg_link)],
-                [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-            ])
-    else:
-        keyboard = back_to_main_keyboard()
-    
-    # Используем edit_caption вместо edit_text, так как сообщение с фото
-    await query.message.edit_caption(
-        caption=text,
-        reply_markup=keyboard,
-        parse_mode='HTML'
-    )
+            keyboard = back_to_main_keyboard()
+        
+        await query.message.edit_caption(
+            caption=text,
+            reply_markup=keyboard,
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        logger.error(f"Order confirmation error for user {user_id}: {e}", exc_info=True)

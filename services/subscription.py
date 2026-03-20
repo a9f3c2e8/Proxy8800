@@ -124,8 +124,4 @@ async def start_sub_server(port: int = 8888):
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     logger.info(f"Subscription server started on port {port}")
-    # Пушим все токены при старте
-    await push_all_tokens()
-    # Запускаем фоновую синхронизацию каждые 60 сек
-    asyncio.ensure_future(periodic_sync())
     return runner
