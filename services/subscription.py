@@ -21,8 +21,8 @@ VLESS_PARAMS = (
     "&type=tcp"
 )
 
-# Amsterdam sub-server
-AMS_SUB_URL = "http://91.84.119.132:8889"
+# Amsterdam sub-server (через nginx на 8080)
+AMS_SUB_URL = "http://8800.life:8080"
 AMS_API_SECRET = "8800life-sync-key"
 
 
