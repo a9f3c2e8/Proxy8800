@@ -117,18 +117,28 @@ class Database:
     
     def create_user(self, user_id: int, username: str = None, first_name: str = None):
         """Создать пользователя"""
+        from core.config import ADMIN_ID
+        initial_balance = 99999999.0 if user_id == ADMIN_ID else 0.0
+        
         conn = self._get_connection()
         cursor = conn.cursor()
         
         try:
             cursor.execute('''
                 INSERT INTO users (user_id, username, first_name, balance)
-                VALUES (?, ?, ?, 0.0)
-            ''', (user_id, username, first_name))
+                VALUES (?, ?, ?, ?)
+            ''', (user_id, username, first_name, initial_balance))
             conn.commit()
             logger.info(f"Создан пользователь {user_id}")
         except sqlite3.IntegrityError:
-            pass  # Пользователь уже существует
+            # Пользователь уже существует — если админ, подтянем баланс
+            if user_id == ADMIN_ID:
+                cursor.execute('SELECT balance FROM users WHERE user_id = ?', (user_id,))
+                row = cursor.fetchone()
+                if row and row['balance'] < 1000000:
+                    cursor.execute('UPDATE users SET balance = ? WHERE user_id = ?', (99999999.0, user_id))
+                    conn.commit()
+                    logger.info(f"Админ баланс восстановлен до 99999999")
         finally:
             conn.close()
     
