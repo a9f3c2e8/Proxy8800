@@ -20,10 +20,9 @@ async def profile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     username = update.effective_user.username or "Не указан"
     
-    # Кэшируем баланс
-    if 'balance' not in context.user_data:
-        context.user_data['balance'] = db.get_balance(user_id)
-    balance = context.user_data['balance']
+    # Всегда читаем свежий баланс из БД
+    balance = db.get_balance(user_id)
+    context.user_data['balance'] = balance
     
     proxy_count = db.get_proxy_count(user_id)
     

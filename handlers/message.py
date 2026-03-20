@@ -137,10 +137,9 @@ async def handle_quantity_input(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data['buy_amount'] = amount
         db.set_user_data(user_id, 'buy_amount', amount)
         
-        # Кэшируем баланс
-        if 'balance' not in context.user_data:
-            context.user_data['balance'] = db.get_balance(user_id)
-        balance = context.user_data['balance']
+        # Всегда свежий баланс
+        balance = db.get_balance(user_id)
+        context.user_data['balance'] = balance
         
         # Получаем тип сервиса
         service_name = "📱 Прокси (Telegram)" if service_type == 'proxy' else "🌐 VPN (Все сервисы)"
