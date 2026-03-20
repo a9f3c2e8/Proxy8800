@@ -130,8 +130,16 @@ async def run_bot() -> None:
     
     setup_handlers(application)
     
-    # Инициализируем и запускаем polling вручную
-    await application.initialize()
+    # Инициализируем с retry
+    for attempt in range(10):
+        try:
+            await application.initialize()
+            logger.info("Telegram API connected")
+            break
+        except Exception as e:
+            logger.warning(f"Init attempt {attempt+1} failed: {e}")
+            await asyncio.sleep(5)
+    
     await application.start()
     
     logger.info("Бот успешно запущен!")
