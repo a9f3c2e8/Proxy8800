@@ -1,4 +1,5 @@
 """Сервер подписок VPN — отдаёт персональные VLESS ключи + пуш на Amsterdam"""
+import asyncio
 import base64
 import logging
 import aiohttp
@@ -49,7 +50,6 @@ async def push_vpn_token(token: str, uuid: str):
 async def push_all_tokens():
     """Отправить все токены на амстердамский sub-server"""
     try:
-        from core.database import db
         conn = db._get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT token, uuid FROM vpn_keys")
@@ -57,7 +57,6 @@ async def push_all_tokens():
         conn.close()
         tokens = {row["token"]: row["uuid"] for row in rows}
         if not tokens:
-            logger.info("No VPN tokens to push")
             return
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -67,9 +66,16 @@ async def push_all_tokens():
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 result = await resp.text()
-                logger.info(f"Push all tokens to AMS: {resp.status} {result}")
+                logger.info(f"Sync tokens to AMS: {resp.status} {result}")
     except Exception as e:
-        logger.error(f"Failed to push all tokens to AMS: {e}")
+        logger.error(f"Failed to sync tokens to AMS: {e}")
+
+
+async def periodic_sync():
+    """Фоновая задача — синхронизация токенов каждые 60 сек"""
+    while True:
+        await asyncio.sleep(60)
+        await push_all_tokens()
 
 
 async def handle_sub(request: web.Request) -> web.Response:
@@ -118,6 +124,8 @@ async def start_sub_server(port: int = 8888):
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     logger.info(f"Subscription server started on port {port}")
-    # Пушим все существующие токены на амстердам при старте
+    # Пушим все токены при старте
     await push_all_tokens()
+    # Запускаем фоновую синхронизацию каждые 60 сек
+    asyncio.ensure_future(periodic_sync())
     return runner
