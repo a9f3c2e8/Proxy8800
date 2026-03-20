@@ -111,32 +111,34 @@ async def run_bot() -> None:
     """Запуск бота с subscription сервером"""
     logger.info("Запуск бота 8800.life...")
     
-    # Сначала запускаем subscription server — он не зависит от Telegram
+    # Сначала запускаем subscription server
     sub_runner = await start_sub_server(port=8888)
     
     application = (
         Application.builder()
         .token(BOT_TOKEN)
-        .connect_timeout(30)
-        .read_timeout(30)
-        .write_timeout(30)
-        .pool_timeout(30)
+        .connect_timeout(60)
+        .read_timeout(60)
+        .write_timeout(60)
+        .pool_timeout(60)
+        .get_updates_connect_timeout(60)
+        .get_updates_read_timeout(60)
+        .get_updates_write_timeout(60)
+        .get_updates_pool_timeout(60)
         .build()
     )
     
     setup_handlers(application)
     
-    logger.info("Бот успешно запущен!")
-    
     # Инициализируем и запускаем polling вручную
     await application.initialize()
     await application.start()
+    
+    logger.info("Бот успешно запущен!")
+    
     await application.updater.start_polling(
         allowed_updates=Update.ALL_TYPES,
-        connect_timeout=30,
-        read_timeout=30,
-        write_timeout=30,
-        pool_timeout=30
+        drop_pending_updates=True,
     )
     
     # Ждём бесконечно
