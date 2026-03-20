@@ -37,11 +37,8 @@ def generate_trial_proxy(user_id: int, service_type: str, index: int) -> dict:
         vpn_token = hashlib.md5(f"{user_id}:trial:{vless_uuid}".encode()).hexdigest()[:16]
         username = vless_uuid
         password = vpn_token
-        # Сохраняем VPN ключ и пушим на амстердам
+        # Сохраняем VPN ключ (push будет в вызывающей async функции)
         db.create_vpn_key(user_id, vless_uuid, vpn_token)
-        import asyncio
-        from services.subscription import push_vpn_token
-        asyncio.ensure_future(push_vpn_token(vpn_token, vless_uuid))
 
     return {
         'id': proxy_id,
@@ -160,6 +157,10 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # 2. VPN
     vpn_data = generate_trial_proxy(user_id, 'vpn', 1)
     db.assign_proxy(user_id, vpn_data['id'], vpn_data)
+
+    # Пушим VPN токен на амстердам
+    from services.subscription import push_vpn_token
+    await push_vpn_token(vpn_data['password'], vpn_data['username'])
 
     # Отмечаем что триал получен
     db.set_user_data(user_id, 'got_trial', True)
