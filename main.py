@@ -107,9 +107,12 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
 
-def main() -> None:
-    """Запуск бота"""
+async def run_bot() -> None:
+    """Запуск бота с subscription сервером"""
     logger.info("Запуск бота 8800.life...")
+    
+    # Сначала запускаем subscription server — он не зависит от Telegram
+    sub_runner = await start_sub_server(port=8888)
     
     application = (
         Application.builder()
@@ -118,7 +121,6 @@ def main() -> None:
         .read_timeout(30)
         .write_timeout(30)
         .pool_timeout(30)
-        .post_init(post_init)
         .build()
     )
     
@@ -126,13 +128,33 @@ def main() -> None:
     
     logger.info("Бот успешно запущен!")
     
-    application.run_polling(
+    # Инициализируем и запускаем polling вручную
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(
         allowed_updates=Update.ALL_TYPES,
         connect_timeout=30,
         read_timeout=30,
         write_timeout=30,
         pool_timeout=30
     )
+    
+    # Ждём бесконечно
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+        await sub_runner.cleanup()
+
+
+def main() -> None:
+    """Запуск бота"""
+    asyncio.run(run_bot())
 
 
 if __name__ == '__main__':
