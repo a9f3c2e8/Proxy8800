@@ -26,7 +26,7 @@ AMS_SUB_URL = "http://8800.life:8080"
 AMS_API_SECRET = "8800life-sync-key"
 
 
-def build_vless_uri(uuid: str, name: str = "8800%20connection's") -> str:
+def build_vless_uri(uuid: str, name: str = "%F0%9F%87%B3%F0%9F%87%B1%20NL%20%7C%20TCP") -> str:
     return f"vless://{uuid}@{VLESS_SERVER}:{VLESS_PORT}?{VLESS_PARAMS}#{name}"
 
 
@@ -86,9 +86,10 @@ async def handle_sub(request: web.Request) -> web.Response:
         content_type="text/plain",
         headers={
             "Profile-Title": "8800 connection's",
-            "Profile-Update-Interval": "12",
+            "Profile-Update-Interval": "1",
             "Subscription-Userinfo": "upload=0; download=0; total=0; expire=0",
             "Support-Url": "https://t.me/connections8800",
+            "Profile-Web-Page-Url": "https://t.me/connections8800",
             "Cache-Control": "no-cache",
         },
     )
