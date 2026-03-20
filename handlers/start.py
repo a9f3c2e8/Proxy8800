@@ -160,7 +160,10 @@ async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     # Пушим VPN токен на амстердам
     from services.subscription import push_vpn_token
-    await push_vpn_token(vpn_data['password'], vpn_data['username'])
+    try:
+        await push_vpn_token(vpn_data['password'], vpn_data['username'])
+    except Exception as e:
+        logger.error(f"Push VPN token failed: {e}")
 
     # Отмечаем что триал получен
     db.set_user_data(user_id, 'got_trial', True)

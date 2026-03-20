@@ -346,7 +346,10 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
             # Сохраняем VPN ключ в БД и пушим на амстердам
             db.create_vpn_key(user_id, vless_uuid, vpn_token)
             from services.subscription import push_vpn_token
-            await push_vpn_token(vpn_token, vless_uuid)
+            try:
+                await push_vpn_token(vpn_token, vless_uuid)
+            except Exception as e:
+                logger.error(f"Push VPN token failed: {e}")
         
         proxy_data = {
             'id': proxy_id,
@@ -370,7 +373,7 @@ async def handle_order_confirmation(update: Update, context: ContextTypes.DEFAUL
         f"Списано: {amount:.2f} ₽\n"
         f"Остаток баланса: {db.get_balance(user_id):.2f} ₽"
     )
-    logger.info(f"Пользователь {user_id} купил {quantity} за {amount:.2f} ₽")
+    logger.info(f"Пользователь {user_id} купил {quantity} {service_type} за {amount:.2f} ₽")
     
     # Создаем кнопки с ссылкой на подключение
     if first_proxy_data:
