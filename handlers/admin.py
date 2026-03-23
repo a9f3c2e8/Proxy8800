@@ -3,8 +3,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from core.database import db
-from core.config import ADMIN_ID, COUNTRIES, PERIODS
-from datetime import datetime
+from core.config import ADMIN_ID
 
 logger = logging.getLogger(__name__)
 
@@ -444,6 +443,14 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         )
     elif data == 'admin_close':
         await query.message.delete()
+    elif data.startswith('admin_chat_reply_'):
+        target_uid = int(data.replace('admin_chat_reply_', ''))
+        context.user_data['waiting_for'] = 'chat_reply'
+        context.user_data['chat_reply_uid'] = target_uid
+        await query.message.reply_text(
+            f"💬 Напишите ответ для пользователя <code>{target_uid}</code>:",
+            parse_mode='HTML'
+        )
 
 
 async def admin_balance_action_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
@@ -603,3 +610,26 @@ async def admin_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
             )
         except Exception as e:
             await update.message.reply_text(f"❌ Ошибка: {e}")
+
+
+async def admin_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ответ на сообщение в чате поддержки через Telegram"""
+    if not is_admin(update.effective_user.id):
+        return
+
+    text = update.message.text.strip()
+    target_uid = context.user_data.get('chat_reply_uid')
+    context.user_data.pop('waiting_for', None)
+    context.user_data.pop('chat_reply_uid', None)
+
+    if not target_uid or not text:
+        await update.message.reply_text("❌ Ошибка: нет ID пользователя или текста")
+        return
+
+    from services.chat import chat_server
+    sent = await chat_server.admin_reply_from_bot(target_uid, text)
+
+    if sent:
+        await update.message.reply_text(f"✅ Отправлено пользователю {target_uid}")
+    else:
+        await update.message.reply_text(f"⚠️ Сохранено, но пользователь {target_uid} оффлайн — увидит при входе в чат")

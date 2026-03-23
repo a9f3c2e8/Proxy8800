@@ -1,7 +1,6 @@
-"""Обработчик команды /start"""
+"""Обработчик /start и подписки"""
 import logging
 import os
-import random
 import hashlib
 from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -13,252 +12,154 @@ from utils import emoji
 logger = logging.getLogger(__name__)
 
 
-async def check_subscription(bot, user_id: int) -> bool:
-    """Проверить подписку на канал"""
+async def _check_sub(bot, user_id: int) -> bool:
     try:
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        return member.status in ('member', 'administrator', 'creator')
+        m = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return m.status in ('member', 'administrator', 'creator')
     except Exception:
         return False
 
 
-def generate_trial_proxy(user_id: int, service_type: str, index: int) -> dict:
-    """Генерировать пробный прокси"""
-    data = f"{user_id}:trial:{service_type}:{index}"
-    proxy_id = hashlib.md5(data.encode()).hexdigest()[:8]
-
-    if service_type == 'proxy':
-        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
-        username = secret
-        password = ''
+def _trial_proxy(user_id, stype, idx):
+    data = f"{user_id}:trial:{stype}:{idx}"
+    pid = hashlib.md5(data.encode()).hexdigest()[:8]
+    if stype == 'proxy':
+        secret = os.getenv('MTPROTO_SECRET', '')
+        return {'id': pid, 'ip': PROXY_DOMAIN, 'port': PROXY_PORT,
+                'username': secret, 'password': '', 'country': 'nl',
+                'period': '4', 'service_type': 'proxy'}
     else:
         import uuid as uuid_mod
-        vless_uuid = str(uuid_mod.uuid4())
-        vpn_token = hashlib.md5(f"{user_id}:trial:{vless_uuid}".encode()).hexdigest()[:16]
-        username = vless_uuid
-        password = vpn_token
-        # Сохраняем VPN ключ (push будет в вызывающей async функции)
-        db.create_vpn_key(user_id, vless_uuid, vpn_token)
-
-    return {
-        'id': proxy_id,
-        'ip': PROXY_DOMAIN,
-        'port': PROXY_PORT,
-        'username': username,
-        'password': password,
-        'country': 'nl',
-        'period': '4',
-        'service_type': service_type
-    }
+        vuuid = str(uuid_mod.uuid4())
+        token = hashlib.md5(f"{user_id}:trial:{vuuid}".encode()).hexdigest()[:16]
+        db.create_vpn_key(user_id, vuuid, token)
+        return {'id': pid, 'ip': PROXY_DOMAIN, 'port': PROXY_PORT,
+                'username': vuuid, 'password': token, 'country': 'nl',
+                'period': '4', 'service_type': 'vpn'}
 
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /start"""
     user = update.effective_user
-    logger.info(f"Пользователь {user.id} ({user.username}) запустил бота")
-
-    # Создаём пользователя если новый
+    logger.info(f"User {user.id} ({user.username}) /start")
     db.create_user(user.id, user.username, user.first_name)
 
-    # Проверяем получал ли уже пробную подписку
     got_trial = db.get_user_data(user.id, 'got_trial', False)
 
     if not got_trial and update.message:
-        # Новый пользователь — предлагаем подписаться на канал
-        channel_name = CHANNEL_ID.replace('@', '')
-        text = (
-            f"👋 <b>Привет!</b>\n\n"
-            f"Подпишись на канал и получи бесплатно на 4 дня:\n\n"
-            f"📱 Прокси для Telegram\n"
-            f"🌐 VPN для всех приложений\n\n"
-            f"<b>Это бесплатно</b> — просто подпишись и нажми кнопку 👇"
-        )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Подписаться", url=f"https://t.me/{channel_name}")],
-            [InlineKeyboardButton("🎁 Получить бесплатно", callback_data='check_sub')],
-        ])
-        msg = await update.message.reply_photo(
-            photo=MENU_IMAGES['main'],
-            caption=text,
-            reply_markup=keyboard,
-            parse_mode='HTML'
-        )
-        if 'main_photo_file_id' not in context.bot_data:
-            context.bot_data['main_photo_file_id'] = msg.photo[-1].file_id
+        ch = CHANNEL_ID.replace('@', '')
+        text = ("👋 <b>Привет!</b>\n\n"
+                "Подпишись на канал и получи бесплатно на 4 дня:\n\n"
+                "📱 Прокси для Telegram\n🌐 VPN для всех приложений\n\n"
+                "<b>Это бесплатно</b> — просто подпишись 👇")
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 Подписаться", url=f"https://t.me/{ch}")],
+            [InlineKeyboardButton("🎁 Получить бесплатно", callback_data='check_sub')]])
+        msg = await update.message.reply_photo(photo=MENU_IMAGES['main'], caption=text,
+                                                reply_markup=kb, parse_mode='HTML')
+        if 'main_photo_id' not in context.bot_data:
+            context.bot_data['main_photo_id'] = msg.photo[-1].file_id
         return
 
-    # Обычный старт (уже получал триал или callback main_menu)
-    welcome_text = (
-        f"{emoji.star()} <b>Добро пожаловать в 8800 Proxy!</b>\n\n"
-        f"<i>Ваш надежный партнер в мире прокси-серверов</i>\n\n"
-        f"<blockquote>\"Качество и надежность - наш приоритет\"</blockquote>"
-    )
+    # Главное меню
+    text = (f"{emoji.star()} <b>Добро пожаловать в 8800!</b>\n\n"
+            f"<i>Ваш надёжный партнёр</i>\n\n"
+            f"<blockquote>\"Качество и надёжность\"</blockquote>")
 
+    photo = context.bot_data.get('main_photo_id', MENU_IMAGES['main'])
     if update.message:
-        if 'main_photo_file_id' in context.bot_data:
-            await update.message.reply_photo(
-                photo=context.bot_data['main_photo_file_id'],
-                caption=welcome_text,
-                reply_markup=main_menu_keyboard(),
-                parse_mode='HTML'
-            )
-        else:
-            msg = await update.message.reply_photo(
-                photo=MENU_IMAGES['main'],
-                caption=welcome_text,
-                reply_markup=main_menu_keyboard(),
-                parse_mode='HTML'
-            )
-            context.bot_data['main_photo_file_id'] = msg.photo[-1].file_id
+        msg = await update.message.reply_photo(photo=photo, caption=text,
+                                                reply_markup=main_menu_keyboard(), parse_mode='HTML')
+        if 'main_photo_id' not in context.bot_data:
+            context.bot_data['main_photo_id'] = msg.photo[-1].file_id
     elif update.callback_query:
         try:
-            photo_id = context.bot_data.get('main_photo_file_id', MENU_IMAGES['main'])
-            media = InputMediaPhoto(media=photo_id, caption=welcome_text, parse_mode='HTML')
-            msg = await update.callback_query.message.edit_media(
-                media=media, reply_markup=main_menu_keyboard()
-            )
-            if 'main_photo_file_id' not in context.bot_data:
-                context.bot_data['main_photo_file_id'] = msg.photo[-1].file_id
+            media = InputMediaPhoto(media=photo, caption=text, parse_mode='HTML')
+            await update.callback_query.message.edit_media(media=media, reply_markup=main_menu_keyboard())
         except Exception:
             await update.callback_query.message.delete()
-            msg = await update.callback_query.message.reply_photo(
-                photo=context.bot_data.get('main_photo_file_id', MENU_IMAGES['main']),
-                caption=welcome_text,
-                reply_markup=main_menu_keyboard(),
-                parse_mode='HTML'
-            )
-            if 'main_photo_file_id' not in context.bot_data:
-                context.bot_data['main_photo_file_id'] = msg.photo[-1].file_id
+            await context.bot.send_photo(chat_id=update.effective_user.id, photo=photo,
+                                          caption=text, reply_markup=main_menu_keyboard(), parse_mode='HTML')
 
 
 async def check_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Проверка подписки и выдача пробной подписки"""
-    query = update.callback_query
-    user_id = update.effective_user.id
-    await query.answer()
+    q = update.callback_query
+    uid = update.effective_user.id
+    await q.answer()
 
-    # Уже получал триал
-    got_trial = db.get_user_data(user_id, 'got_trial', False)
-    if got_trial:
+    if db.get_user_data(uid, 'got_trial', False):
         await start_handler(update, context)
         return
 
-    # Проверяем подписку
-    subscribed = await check_subscription(context.bot, user_id)
-    if not subscribed:
-        await query.answer("❌ Вы не подписаны на канал!", show_alert=True)
+    if not await _check_sub(context.bot, uid):
+        await q.answer("❌ Вы не подписаны на канал!", show_alert=True)
         return
 
-    # Выдаём пробные подписки
-    # 1. Прокси для Telegram
-    proxy_data = generate_trial_proxy(user_id, 'proxy', 0)
-    db.assign_proxy(user_id, proxy_data['id'], proxy_data)
+    # Выдаём триал
+    px = _trial_proxy(uid, 'proxy', 0)
+    db.assign_proxy(uid, px['id'], px)
+    vpn = _trial_proxy(uid, 'vpn', 1)
+    db.assign_proxy(uid, vpn['id'], vpn)
+    db.set_user_data(uid, 'got_trial', True)
 
-    # 2. VPN
-    vpn_data = generate_trial_proxy(user_id, 'vpn', 1)
-    db.assign_proxy(user_id, vpn_data['id'], vpn_data)
-
-    # Пушим VPN токен на амстердам (не нужен с SSH туннелем)
-
-    # Отмечаем что триал получен
-    db.set_user_data(user_id, 'got_trial', True)
-
-    # MTProto ссылка
-    secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
+    secret = os.getenv('MTPROTO_SECRET', '')
     tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
+    vpn_token = vpn['password']
 
-    # VLESS подписка — персональная
-    vpn_token = vpn_data['password']  # токен
-    sub_url = f"http://8800.life:8080/sub/{vpn_token}"
-
-    text = (
-        "🎁 <b>Пробная подписка на 4 дня активирована!</b>\n\n"
-        f"📱 <b>Прокси для Telegram</b>\n"
-        f"Нажми кнопку — подключится автоматически\n\n"
-        f"🌐 <b>VPN для всех приложений</b>\n"
-        f"Нажми кнопку — скопируй ссылку в V2Box / Streisand\n\n"
-        "<blockquote><i>Приятного использования! После окончания пробного периода — продлите в меню</i></blockquote>"
-    )
-
-    keyboard = InlineKeyboardMarkup([
+    text = ("🎁 <b>Пробная подписка на 4 дня!</b>\n\n"
+            "📱 <b>Прокси для Telegram</b>\nНажми кнопку — подключится автоматически\n\n"
+            "🌐 <b>VPN для всех приложений</b>\nСкопируй ссылку в V2Box / Streisand")
+    kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("📱 Подключить прокси", url=tg_link)],
         [InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')],
-        [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]
-    ])
+        [InlineKeyboardButton("◀️ Главное меню", callback_data='main_menu')]])
 
     try:
-        media = InputMediaPhoto(
-            media=context.bot_data.get('main_photo_file_id', MENU_IMAGES['main']),
-            caption=text, parse_mode='HTML'
-        )
-        await query.message.edit_media(media=media, reply_markup=keyboard)
+        photo = context.bot_data.get('main_photo_id', MENU_IMAGES['main'])
+        media = InputMediaPhoto(media=photo, caption=text, parse_mode='HTML')
+        await q.message.edit_media(media=media, reply_markup=kb)
     except Exception:
-        await query.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
+        await q.message.edit_caption(caption=text, reply_markup=kb, parse_mode='HTML')
 
-    logger.info(f"Пользователь {user_id} получил пробную подписку")
+    logger.info(f"User {uid} got trial")
+    from handlers.followup import schedule_followups
+    await schedule_followups(context.application, uid, "trial")
 
 
 async def show_vpn_sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показать список VPN ключей пользователя"""
-    query = update.callback_query
-    user_id = update.effective_user.id
-    await query.answer()
-
-    vpn_keys = db.get_user_vpn_keys(user_id)
-    
-    if not vpn_keys:
-        text = (
-            "🌐 <b>VPN</b>\n\n"
-            "У вас нет активных VPN ключей.\n\n"
-            "<blockquote><i>Купите VPN в меню «Приобрести»</i></blockquote>"
-        )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🛒 Приобрести", callback_data='buy_proxy')],
-            [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
-        ])
+    q = update.callback_query
+    uid = update.effective_user.id
+    await q.answer()
+    keys = db.get_user_vpn_keys(uid)
+    if not keys:
+        text = "🌐 <b>VPN</b>\n\nНет активных ключей.\n\n<blockquote><i>Купите в меню «Приобрести»</i></blockquote>"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🛒 Приобрести", callback_data='buy_proxy')],
+                                    [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]])
     else:
-        # Показываем последний ключ
-        key = vpn_keys[0]
-        sub_url = f"http://8800.life:8080/sub/{key['token']}"
-        text = (
-            "🌐 <b>VPN — подключение</b>\n\n"
-            "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
-            "2. Скопируй ссылку ниже\n"
-            "3. Добавь подписку в приложении\n\n"
-            f"<code>{sub_url}</code>\n\n"
-            "<blockquote><i>Нажми на ссылку чтобы скопировать</i></blockquote>"
-        )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
-        ])
-
+        k = keys[0]
+        sub_url = k.get('sub_url') or f"http://8800.life:8080/sub/{k['token']}"
+        text = ("🌐 <b>VPN — подключение</b>\n\n"
+                "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
+                "2. Скопируй ссылку ниже\n"
+                f"3. Добавь подписку\n\n<code>{sub_url}</code>")
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]])
     try:
-        await query.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
+        await q.message.edit_caption(caption=text, reply_markup=kb, parse_mode='HTML')
     except Exception:
-        await query.message.edit_text(text=text, reply_markup=keyboard, parse_mode='HTML')
+        await q.message.edit_text(text=text, reply_markup=kb, parse_mode='HTML')
 
 
 async def show_vpn_key_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показать конкретный VPN ключ по токену"""
-    query = update.callback_query
-    await query.answer()
-
-    token = query.data.replace('show_vpn_key_', '')
-    sub_url = f"http://8800.life:8080/sub/{token}"
-
-    text = (
-        "🌐 <b>VPN — подключение</b>\n\n"
-        "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
-        "2. Скопируй ссылку ниже\n"
-        "3. Добавь подписку в приложении\n\n"
-        f"<code>{sub_url}</code>\n\n"
-        "<blockquote><i>Нажми на ссылку чтобы скопировать</i></blockquote>"
-    )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]
-    ])
-
+    q = update.callback_query
+    await q.answer()
+    token = q.data.replace('show_vpn_key_', '')
+    key = db.get_vpn_key_by_token(token)
+    sub_url = (key.get('sub_url') if key else None) or f"http://8800.life:8080/sub/{token}"
+    text = ("🌐 <b>VPN — подключение</b>\n\n"
+            "1. Установи <b>V2Box</b> или <b>Streisand</b>\n"
+            "2. Скопируй ссылку ниже\n"
+            f"3. Добавь подписку\n\n<code>{sub_url}</code>")
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data='main_menu')]])
     try:
-        await query.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode='HTML')
+        await q.message.edit_caption(caption=text, reply_markup=kb, parse_mode='HTML')
     except Exception:
-        await query.message.edit_text(text=text, reply_markup=keyboard, parse_mode='HTML')
+        await q.message.edit_text(text=text, reply_markup=kb, parse_mode='HTML')

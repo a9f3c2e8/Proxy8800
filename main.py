@@ -28,6 +28,7 @@ from handlers import (
     support_handler,
     callback_handler,
     message_handler,
+    followup_howto_handler,
     topup_handler,
     topup_amount_handler,
     topup_custom_handler,
@@ -38,9 +39,10 @@ from handlers.admin import (
     admin_handler,
     admin_callback_handler,
     admin_message_handler,
+    admin_reply_handler,
     is_admin
 )
-from services.subscription import start_sub_server
+from services.chat import start_chat_server
 
 # Настройка логирования
 logging.basicConfig(
@@ -57,24 +59,21 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await admin_message_handler(update, context)
     elif is_admin(update.effective_user.id) and context.user_data.get('waiting_for') == 'broadcast_message':
         await admin_message_handler(update, context)
+    elif is_admin(update.effective_user.id) and context.user_data.get('waiting_for') == 'chat_reply':
+        await admin_reply_handler(update, context)
     else:
         await message_handler(update, context)
 
 
-async def post_init(application: Application) -> None:
-    """Запуск subscription сервера после инициализации бота"""
-    await start_sub_server(port=8888)
-
-
 def setup_handlers(application: Application) -> None:
     """Регистрация всех обработчиков"""
-    
+
     # Админ команды
     application.add_handler(CommandHandler("admin", admin_handler))
-    
+
     # Команды
     application.add_handler(CommandHandler("start", start_handler))
-    
+
     # Callback обработчики
     application.add_handler(CallbackQueryHandler(check_sub_handler, pattern='^check_sub$'))
     application.add_handler(CallbackQueryHandler(show_vpn_sub_handler, pattern='^show_vpn_sub$'))
@@ -89,31 +88,31 @@ def setup_handlers(application: Application) -> None:
     application.add_handler(CallbackQueryHandler(help_handler, pattern='^help$'))
     application.add_handler(CallbackQueryHandler(profile_handler, pattern='^profile$'))
     application.add_handler(CallbackQueryHandler(support_handler, pattern='^support$'))
-    
+
     # Платежи (topup)
     application.add_handler(CallbackQueryHandler(topup_handler, pattern='^topup$'))
     application.add_handler(CallbackQueryHandler(topup_amount_handler, pattern='^topup_amt_'))
     application.add_handler(CallbackQueryHandler(topup_custom_handler, pattern='^topup_custom$'))
     application.add_handler(CallbackQueryHandler(topup_method_handler, pattern='^topup_pay_'))
     application.add_handler(CallbackQueryHandler(topup_check_handler, pattern='^topup_check$'))
-    
+
+    # Followup howto
+    application.add_handler(CallbackQueryHandler(followup_howto_handler, pattern='^followup_howto$'))
+
     # Админ callback обработчики
     application.add_handler(CallbackQueryHandler(admin_callback_handler, pattern='^admin_'))
-    
+
     # Общий callback обработчик для процесса покупки
     application.add_handler(CallbackQueryHandler(callback_handler))
-    
+
     # Текстовые сообщения
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
 
 async def run_bot() -> None:
-    """Запуск бота с subscription сервером"""
+    """Запуск бота"""
     logger.info("Запуск бота 8800.life...")
-    
-    # Сначала запускаем subscription server
-    sub_runner = await start_sub_server(port=8888)
-    
+
     application = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -127,9 +126,9 @@ async def run_bot() -> None:
         .get_updates_pool_timeout(60)
         .build()
     )
-    
+
     setup_handlers(application)
-    
+
     # Инициализируем с retry
     for attempt in range(10):
         try:
@@ -139,16 +138,19 @@ async def run_bot() -> None:
         except Exception as e:
             logger.warning(f"Init attempt {attempt+1} failed: {e}")
             await asyncio.sleep(5)
-    
+
     await application.start()
-    
+
+    # Запускаем WebSocket чат-сервер
+    chat_runner = await start_chat_server(port=8888, bot_app=application)
+
     logger.info("Бот успешно запущен!")
-    
+
     await application.updater.start_polling(
         allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True,
     )
-    
+
     # Ждём бесконечно
     try:
         while True:
@@ -159,7 +161,7 @@ async def run_bot() -> None:
         await application.updater.stop()
         await application.stop()
         await application.shutdown()
-        await sub_runner.cleanup()
+        await chat_runner.cleanup()
 
 
 def main() -> None:

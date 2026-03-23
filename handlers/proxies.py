@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 from telegram.ext import ContextTypes
 from core.database import db
 from keyboards import back_to_main_keyboard
-from core.config import COUNTRIES, PERIODS, MENU_IMAGES, PROXY_DOMAIN, PROXY_PORT
+from core.config import PERIODS, MENU_IMAGES, PROXY_DOMAIN, PROXY_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ def build_proxy_message(proxy, idx, total):
     period = proxy.get('period', 'N/A')
 
     if service_type == 'proxy':
-        secret = os.getenv('MTPROTO_SECRET', 'ee665192ec740b9064430789980cd72dbe7777772e676f6f676c652e636f6d')
+        secret = os.getenv('MTPROTO_SECRET', '')
         tg_link = f"https://t.me/proxy?server={PROXY_DOMAIN}&port={PROXY_PORT}&secret={secret}"
         text = (
             f"📱 <b>Прокси для Telegram</b> ({idx + 1}/{total})\n\n"
@@ -33,7 +33,6 @@ def build_proxy_message(proxy, idx, total):
         )
         buttons = [[InlineKeyboardButton("🌐 Подключить VPN", callback_data=f'show_vpn_key_{vpn_token}')]]
 
-    # Пагинация
     nav = []
     if idx > 0:
         nav.append(InlineKeyboardButton("⬅️", callback_data=f'proxy_page_{idx - 1}'))
@@ -83,11 +82,9 @@ async def my_proxies_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user_id = update.effective_user.id
     await query.answer()
-
     proxies = db.get_user_proxies(user_id)
     context.user_data['cached_proxies'] = proxies
     await show_proxy_page(query.message, proxies, 0, context.bot_data)
-    logger.info(f"Пользователь {user_id} просмотрел список прокси")
 
 
 async def proxy_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -95,11 +92,9 @@ async def proxy_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user_id = update.effective_user.id
     await query.answer()
-
     data = query.data
     if data == 'proxy_page_noop':
         return
-
     page = int(data.split('_')[-1])
     proxies = context.user_data.get('cached_proxies') or db.get_user_proxies(user_id)
     context.user_data['cached_proxies'] = proxies
@@ -111,7 +106,6 @@ async def view_proxy_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user_id = update.effective_user.id
     await query.answer()
-
     all_proxies = db.get_user_proxies(user_id)
     proxies = [p for p in all_proxies if p.get('service_type', 'proxy') == 'proxy']
     context.user_data['cached_proxies'] = proxies
@@ -123,7 +117,6 @@ async def view_vpn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     query = update.callback_query
     user_id = update.effective_user.id
     await query.answer()
-
     all_proxies = db.get_user_proxies(user_id)
     vpns = [p for p in all_proxies if p.get('service_type', 'proxy') == 'vpn']
     context.user_data['cached_proxies'] = vpns

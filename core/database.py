@@ -1,509 +1,274 @@
-"""База данных на SQLite"""
+"""База данных SQLite"""
 import sqlite3
 import json
 import logging
 import os
 from typing import Dict, List, Optional
+from core.config import ADMIN_ID
 
 logger = logging.getLogger(__name__)
 
+ADMIN_BALANCE = 99999999.0
+
 
 class Database:
-    """Класс для работы с SQLite базой данных"""
-    
     def __init__(self, db_path: str = 'data/bot.db'):
         self.db_path = db_path
-        # Создаем папку data если не существует
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_db()
-    
-    def _get_connection(self):
-        """Получить подключение к БД"""
+
+    def _conn(self):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
-    
+
     def _init_db(self):
-        """Инициализация базы данных"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        # Таблица пользователей
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                username TEXT,
-                first_name TEXT,
-                balance REAL DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Таблица прокси
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS proxies (
-                id TEXT PRIMARY KEY,
-                user_id INTEGER,
-                ip TEXT,
-                port INTEGER,
-                username TEXT,
-                password TEXT,
-                country TEXT,
-                period TEXT,
-                service_type TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (user_id)
-            )
-        ''')
-        
-        # Таблица временных данных пользователя
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_data (
-                user_id INTEGER,
-                key TEXT,
-                value TEXT,
-                PRIMARY KEY (user_id, key),
-                FOREIGN KEY (user_id) REFERENCES users (user_id)
-            )
-        ''')
-        
-        # Таблица транзакций
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                amount REAL,
-                type TEXT,
-                description TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (user_id)
-            )
-        ''')
-        
-        # Индексы для ускорения запросов
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_proxies_user_id ON proxies(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_data_user_id ON user_data(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)')
-        
-        # Таблица VPN ключей
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS vpn_keys (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                uuid TEXT NOT NULL,
-                token TEXT NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (user_id)
-            )
-        ''')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_vpn_keys_user_id ON vpn_keys(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_vpn_keys_token ON vpn_keys(token)')
-        
+        conn = self._conn()
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            balance REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS proxies (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER,
+            ip TEXT, port INTEGER, username TEXT, password TEXT,
+            country TEXT, period TEXT, service_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS user_data (
+            user_id INTEGER, key TEXT, value TEXT,
+            PRIMARY KEY (user_id, key)
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER, amount REAL, type TEXT, description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS vpn_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER, uuid TEXT NOT NULL, token TEXT NOT NULL UNIQUE,
+            rw_user_uuid TEXT,
+            sub_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_proxies_uid ON proxies(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_vpn_uid ON vpn_keys(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_vpn_token ON vpn_keys(token)')
         conn.commit()
         conn.close()
-        logger.info("База данных SQLite инициализирована")
-    
-    def get_user(self, user_id: int) -> Optional[Dict]:
-        """Получить пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return dict(row)
-        return None
-    
+        logger.info("БД инициализирована")
+
+    # --- Users ---
     def create_user(self, user_id: int, username: str = None, first_name: str = None):
-        """Создать пользователя"""
-        from core.config import ADMIN_ID
-        initial_balance = 99999999.0 if user_id == ADMIN_ID else 0.0
-        
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
+        bal = ADMIN_BALANCE if user_id == ADMIN_ID else 0.0
+        conn = self._conn()
         try:
-            cursor.execute('''
-                INSERT INTO users (user_id, username, first_name, balance)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, username, first_name, initial_balance))
+            conn.execute('INSERT INTO users (user_id,username,first_name,balance) VALUES (?,?,?,?)',
+                         (user_id, username, first_name, bal))
             conn.commit()
-            logger.info(f"Создан пользователь {user_id}")
         except sqlite3.IntegrityError:
-            # Пользователь уже существует — если админ, подтянем баланс
             if user_id == ADMIN_ID:
-                cursor.execute('SELECT balance FROM users WHERE user_id = ?', (user_id,))
-                row = cursor.fetchone()
-                if row and row['balance'] < 1000000:
-                    cursor.execute('UPDATE users SET balance = ? WHERE user_id = ?', (99999999.0, user_id))
+                row = conn.execute('SELECT balance FROM users WHERE user_id=?', (user_id,)).fetchone()
+                if row and row['balance'] < 1_000_000:
+                    conn.execute('UPDATE users SET balance=? WHERE user_id=?', (ADMIN_BALANCE, user_id))
                     conn.commit()
-                    logger.info(f"Админ баланс восстановлен до 99999999")
         finally:
             conn.close()
-    
-    def get_balance(self, user_id: int) -> float:
-        """Получить баланс пользователя"""
-        user = self.get_user(user_id)
-        if not user:
-            self.create_user(user_id)
-            return 0.0
-        return user['balance']
-    
-    def add_balance(self, user_id: int, amount: float) -> bool:
-        """Пополнить баланс"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            UPDATE users SET balance = balance + ? WHERE user_id = ?
-        ''', (amount, user_id))
-        
-        # Записываем транзакцию
-        cursor.execute('''
-            INSERT INTO transactions (user_id, amount, type, description)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, amount, 'deposit', 'Пополнение баланса'))
-        
-        conn.commit()
-        conn.close()
-        return True
-    
-    def subtract_balance(self, user_id: int, amount: float) -> bool:
-        """Списать с баланса"""
-        balance = self.get_balance(user_id)
-        if balance < amount:
-            return False
-        
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            UPDATE users SET balance = balance - ? WHERE user_id = ?
-        ''', (amount, user_id))
-        
-        # Записываем транзакцию
-        cursor.execute('''
-            INSERT INTO transactions (user_id, amount, type, description)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, -amount, 'purchase', 'Покупка прокси'))
-        
-        conn.commit()
-        conn.close()
-        return True
-    
-    def assign_proxy(self, user_id: int, proxy_id: str, proxy_data: Dict):
-        """Выдать прокси пользователю"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO proxies (id, user_id, ip, port, username, password, country, period, service_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            proxy_id,
-            user_id,
-            proxy_data['ip'],
-            proxy_data['port'],
-            proxy_data['username'],
-            proxy_data['password'],
-            proxy_data['country'],
-            proxy_data['period'],
-            proxy_data.get('service_type', 'proxy')
-        ))
-        
-        conn.commit()
-        conn.close()
-        logger.info(f"Прокси {proxy_id} выдан пользователю {user_id}")
-    
-    def get_user_proxies(self, user_id: int) -> List[Dict]:
-        """Получить все прокси пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT * FROM proxies WHERE user_id = ? ORDER BY created_at DESC
-        ''', (user_id,))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
-    
-    def get_proxy_count(self, user_id: int) -> int:
-        """Получить количество прокси пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT COUNT(*) as count FROM proxies WHERE user_id = ?', (user_id,))
-        result = cursor.fetchone()
-        conn.close()
-        
-        return result['count'] if result else 0
-    
-    def set_user_data(self, user_id: int, key: str, value):
-        """Сохранить временные данные пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        # Создаем пользователя если не существует
-        self.create_user(user_id)
-        
-        cursor.execute('''
-            INSERT OR REPLACE INTO user_data (user_id, key, value)
-            VALUES (?, ?, ?)
-        ''', (user_id, key, json.dumps(value)))
-        
-        conn.commit()
-        conn.close()
-    
-    def set_user_data_batch(self, user_id: int, data: Dict):
-        """Сохранить несколько данных пользователя одним запросом"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        # Создаем пользователя если не существует
-        self.create_user(user_id)
-        
-        # Пакетная вставка
-        values = [(user_id, key, json.dumps(value)) for key, value in data.items()]
-        cursor.executemany('''
-            INSERT OR REPLACE INTO user_data (user_id, key, value)
-            VALUES (?, ?, ?)
-        ''', values)
-        
-        conn.commit()
-        conn.close()
-    
-    def get_user_data(self, user_id: int, key: str, default=None):
-        """Получить временные данные пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT value FROM user_data WHERE user_id = ? AND key = ?
-        ''', (user_id, key))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return json.loads(row['value'])
-        return default
-    
-    # Админ методы
-    def get_admin_stats(self) -> Dict:
-        """Получить статистику для админа"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        # Общая статистика
-        cursor.execute('SELECT COUNT(*) as count FROM users')
-        total_users = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT COUNT(*) as count FROM proxies')
-        total_proxies = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT SUM(balance) as sum FROM users')
-        total_balance = cursor.fetchone()['sum'] or 0
-        
-        cursor.execute('SELECT COUNT(*) as count FROM transactions')
-        total_transactions = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT SUM(amount) as sum FROM transactions')
-        transactions_sum = cursor.fetchone()['sum'] or 0
-        
-        cursor.execute("SELECT COUNT(*) as count FROM proxies WHERE service_type = 'proxy'")
-        proxy_count = cursor.fetchone()['count']
-        
-        cursor.execute("SELECT COUNT(*) as count FROM proxies WHERE service_type = 'vpn'")
-        vpn_count = cursor.fetchone()['count']
-        
-        conn.close()
-        
-        return {
-            'total_users': total_users,
-            'total_proxies': total_proxies,
-            'total_balance': total_balance,
-            'total_transactions': total_transactions,
-            'transactions_sum': transactions_sum,
-            'proxy_count': proxy_count,
-            'vpn_count': vpn_count
-        }
-    
-    def get_all_users(self, page: int = 0, per_page: int = 10) -> List[Dict]:
-        """Получить всех пользователей с пагинацией"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        offset = page * per_page
-        cursor.execute('''
-            SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?
-        ''', (per_page, offset))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
-    
-    def get_total_users(self) -> int:
-        """Получить общее количество пользователей"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT COUNT(*) as count FROM users')
-        result = cursor.fetchone()
-        conn.close()
-        
-        return result['count']
-    
-    def get_all_proxies(self, page: int = 0, per_page: int = 10) -> List[Dict]:
-        """Получить все прокси с пагинацией"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        offset = page * per_page
-        cursor.execute('''
-            SELECT * FROM proxies ORDER BY created_at DESC LIMIT ? OFFSET ?
-        ''', (per_page, offset))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
-    
-    def get_total_proxies(self) -> int:
-        """Получить общее количество прокси"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT COUNT(*) as count FROM proxies')
-        result = cursor.fetchone()
-        conn.close()
-        
-        return result['count']
-    
-    def get_all_transactions(self, page: int = 0, per_page: int = 10) -> List[Dict]:
-        """Получить все транзакции с пагинацией"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        offset = page * per_page
-        cursor.execute('''
-            SELECT * FROM transactions ORDER BY created_at DESC LIMIT ? OFFSET ?
-        ''', (per_page, offset))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
-    
-    def get_total_transactions(self) -> int:
-        """Получить общее количество транзакций"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT COUNT(*) as count FROM transactions')
-        result = cursor.fetchone()
-        conn.close()
-        
-        return result['count']
-    
-    def get_all_users_ids(self) -> List[int]:
-        """Получить ID всех пользователей"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT user_id FROM users')
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [row['user_id'] for row in rows]
-    
-    def set_balance(self, user_id: int, amount: float):
-        """Установить баланс пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            UPDATE users SET balance = ? WHERE user_id = ?
-        ''', (amount, user_id))
-        
-        cursor.execute('''
-            INSERT INTO transactions (user_id, amount, type, description)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, amount, 'admin', 'Установка баланса админом'))
-        
-        conn.commit()
-        conn.close()
-    
-    def cleanup_temp_data(self) -> int:
-        """Очистить временные данные"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('DELETE FROM user_data')
-        count = cursor.rowcount
-        
-        conn.commit()
-        conn.close()
-        
-        return count
-    
-    def cleanup_old_transactions(self, days: int = 90) -> int:
-        """Удалить старые транзакции"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            DELETE FROM transactions 
-            WHERE created_at < datetime('now', '-' || ? || ' days')
-        ''', (days,))
-        count = cursor.rowcount
-        
-        conn.commit()
-        conn.close()
-        
-        return count
-    
-    # VPN ключи
-    def create_vpn_key(self, user_id: int, vless_uuid: str, token: str):
-        """Создать VPN ключ для пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO vpn_keys (user_id, uuid, token) VALUES (?, ?, ?)
-        ''', (user_id, vless_uuid, token))
-        conn.commit()
-        conn.close()
-    
-    def get_vpn_key_by_token(self, token: str) -> Optional[Dict]:
-        """Получить VPN ключ по токену"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM vpn_keys WHERE token = ?', (token,))
-        row = cursor.fetchone()
+
+    def get_user(self, user_id: int) -> Optional[Dict]:
+        conn = self._conn()
+        row = conn.execute('SELECT * FROM users WHERE user_id=?', (user_id,)).fetchone()
         conn.close()
         return dict(row) if row else None
-    
+
+    def get_balance(self, user_id: int) -> float:
+        u = self.get_user(user_id)
+        if not u:
+            self.create_user(user_id)
+            return ADMIN_BALANCE if user_id == ADMIN_ID else 0.0
+        return u['balance']
+
+    def add_balance(self, user_id: int, amount: float):
+        conn = self._conn()
+        conn.execute('UPDATE users SET balance=balance+? WHERE user_id=?', (amount, user_id))
+        conn.execute('INSERT INTO transactions (user_id,amount,type,description) VALUES (?,?,?,?)',
+                     (user_id, amount, 'deposit', 'Пополнение'))
+        conn.commit()
+        conn.close()
+
+    def subtract_balance(self, user_id: int, amount: float) -> bool:
+        if self.get_balance(user_id) < amount:
+            return False
+        conn = self._conn()
+        conn.execute('UPDATE users SET balance=balance-? WHERE user_id=?', (amount, user_id))
+        conn.execute('INSERT INTO transactions (user_id,amount,type,description) VALUES (?,?,?,?)',
+                     (user_id, -amount, 'purchase', 'Покупка'))
+        conn.commit()
+        conn.close()
+        return True
+
+    def set_balance(self, user_id: int, amount: float):
+        conn = self._conn()
+        conn.execute('UPDATE users SET balance=? WHERE user_id=?', (amount, user_id))
+        conn.commit()
+        conn.close()
+
+    # --- Proxies ---
+    def assign_proxy(self, user_id: int, proxy_id: str, data: Dict):
+        conn = self._conn()
+        conn.execute('''INSERT INTO proxies (id,user_id,ip,port,username,password,country,period,service_type)
+                        VALUES (?,?,?,?,?,?,?,?,?)''',
+                     (proxy_id, user_id, data['ip'], data['port'], data['username'],
+                      data['password'], data['country'], data['period'], data.get('service_type', 'proxy')))
+        conn.commit()
+        conn.close()
+
+    def get_user_proxies(self, user_id: int) -> List[Dict]:
+        conn = self._conn()
+        rows = conn.execute('SELECT * FROM proxies WHERE user_id=? ORDER BY created_at DESC', (user_id,)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_proxy_count(self, user_id: int) -> int:
+        conn = self._conn()
+        r = conn.execute('SELECT COUNT(*) as c FROM proxies WHERE user_id=?', (user_id,)).fetchone()
+        conn.close()
+        return r['c']
+
+    # --- VPN Keys ---
+    def create_vpn_key(self, user_id: int, vless_uuid: str, token: str,
+                       rw_user_uuid: str = None, sub_url: str = None):
+        conn = self._conn()
+        conn.execute('INSERT INTO vpn_keys (user_id,uuid,token,rw_user_uuid,sub_url) VALUES (?,?,?,?,?)',
+                     (user_id, vless_uuid, token, rw_user_uuid, sub_url))
+        conn.commit()
+        conn.close()
+
+    def get_vpn_key_by_token(self, token: str) -> Optional[Dict]:
+        conn = self._conn()
+        row = conn.execute('SELECT * FROM vpn_keys WHERE token=?', (token,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
     def get_user_vpn_keys(self, user_id: int) -> List[Dict]:
-        """Получить все VPN ключи пользователя"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM vpn_keys WHERE user_id = ? ORDER BY created_at DESC', (user_id,))
-        rows = cursor.fetchall()
+        conn = self._conn()
+        rows = conn.execute('SELECT * FROM vpn_keys WHERE user_id=? ORDER BY created_at DESC', (user_id,)).fetchall()
         conn.close()
-        return [dict(row) for row in rows]
-    
+        return [dict(r) for r in rows]
+
     def get_all_vpn_uuids(self) -> List[str]:
-        """Получить все UUID для конфига XRay"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT uuid FROM vpn_keys')
-        rows = cursor.fetchall()
+        conn = self._conn()
+        rows = conn.execute('SELECT DISTINCT uuid FROM vpn_keys').fetchall()
         conn.close()
-        return [row['uuid'] for row in rows]
+        return [r['uuid'] for r in rows]
+
+    # --- User Data (temp) ---
+    def set_user_data(self, user_id: int, key: str, value):
+        self.create_user(user_id)
+        conn = self._conn()
+        conn.execute('INSERT OR REPLACE INTO user_data (user_id,key,value) VALUES (?,?,?)',
+                     (user_id, key, json.dumps(value)))
+        conn.commit()
+        conn.close()
+
+    def set_user_data_batch(self, user_id: int, data: Dict):
+        self.create_user(user_id)
+        conn = self._conn()
+        vals = [(user_id, k, json.dumps(v)) for k, v in data.items()]
+        conn.executemany('INSERT OR REPLACE INTO user_data (user_id,key,value) VALUES (?,?,?)', vals)
+        conn.commit()
+        conn.close()
+
+    def get_user_data(self, user_id: int, key: str, default=None):
+        conn = self._conn()
+        row = conn.execute('SELECT value FROM user_data WHERE user_id=? AND key=?', (user_id, key)).fetchone()
+        conn.close()
+        return json.loads(row['value']) if row else default
+
+    # --- Admin ---
+    def get_admin_stats(self) -> Dict:
+        conn = self._conn()
+        c = conn.cursor()
+        total_users = c.execute('SELECT COUNT(*) as c FROM users').fetchone()['c']
+        total_proxies = c.execute('SELECT COUNT(*) as c FROM proxies').fetchone()['c']
+        total_balance = c.execute('SELECT COALESCE(SUM(balance),0) as s FROM users').fetchone()['s']
+        total_tx = c.execute('SELECT COUNT(*) as c FROM transactions').fetchone()['c']
+        tx_sum = c.execute('SELECT COALESCE(SUM(amount),0) as s FROM transactions').fetchone()['s']
+        proxy_cnt = c.execute("SELECT COUNT(*) as c FROM proxies WHERE service_type='proxy'").fetchone()['c']
+        vpn_cnt = c.execute("SELECT COUNT(*) as c FROM proxies WHERE service_type='vpn'").fetchone()['c']
+        conn.close()
+        return {
+            'total_users': total_users, 'total_proxies': total_proxies,
+            'total_balance': total_balance, 'total_transactions': total_tx,
+            'transactions_sum': tx_sum, 'proxy_count': proxy_cnt, 'vpn_count': vpn_cnt,
+        }
+
+    def get_all_users(self, page=0, per_page=10) -> List[Dict]:
+        conn = self._conn()
+        rows = conn.execute('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                            (per_page, page * per_page)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_total_users(self) -> int:
+        conn = self._conn()
+        r = conn.execute('SELECT COUNT(*) as c FROM users').fetchone()
+        conn.close()
+        return r['c']
+
+    def get_all_users_ids(self) -> List[int]:
+        conn = self._conn()
+        rows = conn.execute('SELECT user_id FROM users').fetchall()
+        conn.close()
+        return [r['user_id'] for r in rows]
+
+    def get_all_proxies(self, page=0, per_page=10) -> List[Dict]:
+        conn = self._conn()
+        rows = conn.execute('SELECT * FROM proxies ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                            (per_page, page * per_page)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_total_proxies(self) -> int:
+        conn = self._conn()
+        r = conn.execute('SELECT COUNT(*) as c FROM proxies').fetchone()
+        conn.close()
+        return r['c']
+
+    def get_all_transactions(self, page=0, per_page=10) -> List[Dict]:
+        conn = self._conn()
+        rows = conn.execute('SELECT * FROM transactions ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                            (per_page, page * per_page)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    def get_total_transactions(self) -> int:
+        conn = self._conn()
+        r = conn.execute('SELECT COUNT(*) as c FROM transactions').fetchone()
+        conn.close()
+        return r['c']
+
+    def cleanup_temp_data(self) -> int:
+        conn = self._conn()
+        conn.execute('DELETE FROM user_data')
+        cnt = conn.total_changes
+        conn.commit()
+        conn.close()
+        return cnt
+
+    def cleanup_old_transactions(self, days=90) -> int:
+        conn = self._conn()
+        c = conn.execute("DELETE FROM transactions WHERE created_at < datetime('now','-'||?||' days')", (days,))
+        cnt = c.rowcount
+        conn.commit()
+        conn.close()
+        return cnt
 
 
-# Глобальный экземпляр базы данных
 db = Database()
