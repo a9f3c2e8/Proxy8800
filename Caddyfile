@@ -1,4 +1,4 @@
-8800.life {
+:80 {
     root * /srv
     file_server
 
