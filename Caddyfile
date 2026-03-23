@@ -1,13 +1,9 @@
-8800.life {
+:80 {
     root * /srv
     file_server
 
-    # WebSocket чат — проксируем на бота
     reverse_proxy /ws/* bot:8888
-
-    # Health check
     reverse_proxy /health bot:8888
 
-    # SPA — если файл не найден, отдаём app.html
     try_files {path} /app.html
 }
