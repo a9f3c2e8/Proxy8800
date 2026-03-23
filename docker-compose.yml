@@ -30,7 +30,7 @@ services:
     container_name: 8800-web
     restart: always
     ports:
-      - "8080:80"
+      - "8081:80"
     volumes:
       - ./web:/usr/share/nginx/html:ro
       - ./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
