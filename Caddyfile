@@ -1,9 +1,19 @@
+8800.life {
+	root * /srv
+	file_server
+
+	reverse_proxy /ws/* bot:8888
+	reverse_proxy /health bot:8888
+
+	try_files {path} /app.html
+}
+
 :80 {
-    root * /srv
-    file_server
+	root * /srv
+	file_server
 
-    reverse_proxy /ws/* bot:8888
-    reverse_proxy /health bot:8888
+	reverse_proxy /ws/* bot:8888
+	reverse_proxy /health bot:8888
 
-    try_files {path} /app.html
+	try_files {path} /app.html
 }
