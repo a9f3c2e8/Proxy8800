@@ -1,19 +1,11 @@
-8800.life {
-	root * /srv
-	file_server
-
-	reverse_proxy /ws/* bot:8888
-	reverse_proxy /health bot:8888
-
-	try_files {path} /app.html
+{
+	auto_https off
 }
 
 :80 {
 	root * /srv
 	file_server
-
 	reverse_proxy /ws/* bot:8888
 	reverse_proxy /health bot:8888
-
 	try_files {path} /app.html
 }
